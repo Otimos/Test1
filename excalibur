@@ -1,12 +1,581 @@
 --[[
- .____                  ________ ___.    _____                           __                
- |    |    __ _______   \_____  \\_ |___/ ____\_ __  ______ ____ _____ _/  |_  ___________ 
- |    |   |  |  \__  \   /   |   \| __ \   __\  |  \/  ___// ___\\__  \\   __\/  _ \_  __ \
- |    |___|  |  // __ \_/    |    \ \_\ \  | |  |  /\___ \\  \___ / __ \|  | (  <_> )  | \/
- |_______ \____/(____  /\_______  /___  /__| |____//____  >\___  >____  /__|  \____/|__|   
-         \/          \/         \/    \/                \/     \/     \/                   
-          \_Welcome to LuaObfuscator.com   (Alpha 0.10.9) ~  Much Love, Ferib 
+    â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+    â•‘         OTIMOS - AUTO FARM v6.0              â•‘
+    â•‘   Seletor de Mob + Skills Z/X/C + Rewards    â•‘
+    â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+]]
 
-]]--
+-- ==========================================
+--         LISTA DE MOBS DO JOGO
+-- ==========================================
+local MOB_LIST = {
+    { name = "Frost Minion",    boss = false },
+    { name = "Soul Minion",     boss = false },
+    { name = "Flame Minion",    boss = false },
+    { name = "Frost Soldier",   boss = false },
+    { name = "Flame Soldier",   boss = false },
+    { name = "Thunder Soldier", boss = false },
+    { name = "Wind Soldier",    boss = false },
+    { name = "Sailor",          boss = false },
+    { name = "Niflor",          boss = true  },
+    { name = "Surtrik",         boss = true  },
+    { name = "Thorvak",         boss = true  },
+    { name = "Hraegon",         boss = true  },
+    { name = "Gelaros",         boss = true  },
+    { name = "Ragaros",         boss = true  },
+    { name = "Nivaron",         boss = true  },
+    { name = "Struggler",       boss = true  },
+    { name = "Magador",         boss = true  },
+    { name = "Velik",           boss = true  },
+    { name = "Moraros",         boss = true  },
+    { name = "Nameless Hero",   boss = true  },
+}
 
-local v0=string.char;local v1=string.byte;local v2=string.sub;local v3=bit32 or bit ;local v4=v3.bxor;local v5=table.concat;local v6=table.insert;local function v7(v29,v30) local v31={};for v174=1, #v29 do v6(v31,v0(v4(v1(v2(v29,v174,v174 + 1 )),v1(v2(v30,1 + (v174% #v30) ,1 + (v174% #v30) + 1 )))%256 ));end return v5(v31);end local v8={{[v7("\223\194\214\32","\126\177\163\187\69\134\219\167")]=v7("\5\223\37\214\232\99\224\35\203\245\44\195","\156\67\173\74\165"),[v7("\54\184\90\5","\38\84\215\41\118\220\70")]=false},{[v7("\94\23\47\23","\158\48\118\66\114")]=v7("\152\43\5\58\51\136\242\165\45\31\56","\155\203\68\112\86\19\197"),[v7("\68\210\37\239","\152\38\189\86\156\32\24\133")]=false},{[v7("\242\86\170\67","\38\156\55\199")]=v7("\142\113\125\37\22\52\215\74\166\116\115\38","\35\200\29\28\72\115\20\154"),[v7("\27\176\194\204","\84\121\223\177\191\237\76")]=false},{[v7("\181\87\196\165","\161\219\54\169\192\90\48\80")]=v7("\111\80\15\54\93\2\51\42\69\70\9\32\91","\69\41\34\96"),[v7("\190\204\196\25","\75\220\163\183\106\98")]=false},{[v7("\12\187\134\50","\185\98\218\235\87")]=v7("\237\48\38\235\219\234\248\51\43\226\215\175\217","\202\171\92\71\134\190"),[v7("\43\206\63\155","\232\73\161\76")]=false},{[v7("\181\216\79\88","\126\219\185\34\61")]=v7("\56\198\75\124\122\114\225\167\63\193\82\118\119\114\225","\135\108\174\62\18\30\23\147"),[v7("\180\230\57\216","\167\214\137\74\171\120\206\83")]=false},{[v7("\133\241\63\88","\199\235\144\82\61\152")]=v7("\48\31\183\47\71\37\182\39\3\31\188\57","\75\103\118\217"),[v7("\197\91\99\7","\126\167\52\16\116\217")]=false},{[v7("\198\47\45\133","\156\168\78\64\224\212\121")]=v7("\52\239\172\194\8\252","\174\103\142\197"),[v7("\84\39\76\43","\152\54\72\63\88\69\62")]=false},{[v7("\218\197\227\89","\60\180\164\142")]=v7("\118\87\3\37\40\255","\114\56\62\101\73\71\141"),[v7("\186\230\200\215","\164\216\137\187")]=true},{[v7("\220\231\60\183","\107\178\134\81\210\198\158")]=v7("\11\27\144\210\184\49\5","\202\88\110\226\166"),[v7("\193\0\145\228","\170\163\111\226\151")]=true},{[v7("\31\49\191\61","\73\113\80\210\88\46\87")]=v7("\181\36\194\0\241\128\39","\135\225\76\173\114"),[v7("\24\226\171\163","\199\122\141\216\208\204\221")]=true},{[v7("\163\220\29\245","\150\205\189\112\144\24")]=v7("\13\150\190\73\3\135\31","\112\69\228\223\44\100\232\113"),[v7("\214\16\20\192","\230\180\127\103\179\214\28")]=true},{[v7("\130\4\82\67","\128\236\101\63\38\132\33")]=v7("\139\172\29\69\164\228\220","\175\204\201\113\36\214\139"),[v7("\69\195\38\207","\100\39\172\85\188")]=true},{[v7("\163\121\180\133","\83\205\24\217\224")]=v7("\212\196\202\60\244\202\222","\93\134\165\173"),[v7("\188\253\210\209","\30\222\146\161\162\90\174\210")]=true},{[v7("\235\79\125\15","\106\133\46\16")]=v7("\118\41\101\253\72\79\86","\32\56\64\19\156\58"),[v7("\88\199\246\69","\224\58\168\133\54\58\146")]=true},{[v7("\87\87\70\248","\107\57\54\43\157\21\230\231")]=v7("\232\159\3\224\190\219\195\222\153","\175\187\235\113\149\217\188"),[v7("\62\160\146\95","\24\92\207\225\44\131\25")]=true},{[v7("\69\210\181\73","\29\43\179\216\44\123")]=v7("\144\216\39\77\185\214\50","\44\221\185\64"),[v7("\3\232\91\76","\19\97\135\40\63")]=true},{[v7("\160\93\62\62","\81\206\60\83\91\79")]=v7("\120\174\220\123\36","\196\46\203\176\18\79\163\45"),[v7("\186\45\109\13","\143\216\66\30\126\68\155")]=true},{[v7("\164\201\0\206","\129\202\168\109\171\165\195\183")]=v7("\15\87\37\217\204\27\245","\134\66\56\87\184\190\116"),[v7("\62\62\26\168","\85\92\81\105\219\121\139\65")]=true},{[v7("\243\178\93\64","\191\157\211\48\37\28")]=v7("\241\30\249\25\54\218\12\231\92\18\218\13\251","\90\191\127\148\124"),[v7("\122\136\61\4","\119\24\231\78")]=true}};local v9={[v7("\177\40\169\79\223\84\20\134\0\170\72","\113\226\77\197\42\188\32")]=nil,[v7("\27\2\224\180\57\29\208\176\54\23\237","\213\90\118\148")]=0.08 -0 ,[v7("\104\37\189\90\65\97","\45\59\78\212\54")]=true,[v7("\35\93\138\135\138\22","\144\112\54\227\235\230\78\205")]=true,[v7("\128\35\6\240\220\120","\59\211\72\111\156\176")]=true,[v7("\125\140\234\33\66\189\199\40\66\134\250","\77\46\231\131")]=941 -(714 + 225) ,[v7("\137\95\191\76\182\108\146\69\182\85\175","\32\218\52\214")]=3,[v7("\125\28\56\164\253\147\97\95\66\22\40","\58\46\119\81\200\145\208\37")]=14 -9 };local v10=game:GetService(v7("\27\128\49\181\172\175\37","\86\75\236\80\204\201\221"));local v11=game:GetService(v7("\68\72\101\145\235\138\126\104\121\149\235\159\95\64\121\132\249\142\96","\235\18\33\23\229\158"));local v12=v10.LocalPlayer;local v13,v14,v15;local function v16() local v32=0 -0 ;while true do if (v32==(1 + 0)) then v14=v13:FindFirstChildOfClass(v7("\120\175\204\186\94\181\200\191","\219\48\218\161"));v15=v13:FindFirstChild(v7("\204\100\113\72\213\64\233\224\67\115\70\207\127\225\246\101","\128\132\17\28\41\187\47"));v32=2 -0 ;end if (v32==(806 -(118 + 688))) then v13=v12.Character;if  not v13 then return false;end v32=49 -(25 + 23) ;end if (v32==(1 + 1)) then return (v14~=nil) and (v15~=nil) ;end end end v16();local v17=false;local v18=nil;local v19,v20,v21=0,1886 -(927 + 959) ,0;local function v22(v33) return v33:FindFirstChild(v7("\41\39\11\59\83\14\59\2\8\82\14\38\54\59\79\21","\61\97\82\102\90")) or v33:FindFirstChild(v7("\158\33\164\95","\105\204\78\203\43\167\55\126")) or v33:FindFirstChildOfClass(v7("\135\171\48\27\35\5\213\69","\49\197\202\67\126\115\100\167")) ;end local function v23() local v34=workspace:FindFirstChild(v7("\18\85\218\36\153\101\91\37\77\214\42\133","\62\87\59\191\73\224\54"));if ( not v34 or  not v15) then return nil;end local v35,v36=nil,math.huge;for v175,v176 in ipairs(v34:GetChildren()) do local v177=0 -0 ;local v178;local v179;local v180;while true do if ((3 -2)==v177) then v180=nil;while true do if (v178==(732 -(16 + 716))) then if v9.SelectedMob then local v293=v176.Name:match(v7("\162\63\191\218\173\74\180\130\174\70","\169\135\98\154")) or v176.Name ;if (v293~=v9.SelectedMob) then continue;end end v179=v176:FindFirstChildOfClass(v7("\227\98\41\85\243\60\193\207","\168\171\23\68\52\157\83"));v178=1 -0 ;end if (v178==1) then v180=v22(v176);if (v179 and v180 and (v179.Health>(97 -(11 + 86)))) then local v294=0;local v295;while true do if (v294==(0 -0)) then v295=(v15.Position-v180.Position).Magnitude;if (v295<v36) then local v307=1453 -(666 + 787) ;while true do if (v307==(285 -(175 + 110))) then v36=v295;v35=v176;break;end end end break;end end end break;end end break;end if ((0 + 0)==v177) then v178=254 -(79 + 175) ;v179=nil;v177=2 -1 ;end end end return v35;end local function v24(v37) v15.CFrame=CFrame.new(v37 + Vector3.new(0 -0 ,4,1796 -(503 + 1293) ) );end local function v25() pcall(function() local v181=0 -0 ;while true do if (v181==(0 -0)) then v11:SendMouseButtonEvent(0 + 0 ,1061 -(810 + 251) ,0 + 0 ,true,game,1 + 0 );task.wait(0.06 + 0 );v181=534 -(43 + 490) ;end if (v181==(734 -(711 + 22))) then v11:SendMouseButtonEvent(0 -0 ,0,859 -(240 + 619) ,false,game,1 + 0 );break;end end end);end local function v26(v39) pcall(function() local v182=0 -0 ;while true do if (v182==(0 + 0)) then v11:SendKeyEvent(true,v39,false,game);task.wait(0.08);v182=1745 -(1344 + 400) ;end if (v182==(406 -(255 + 150))) then v11:SendKeyEvent(false,v39,false,game);break;end end end);end local function v27() local v40=0 + 0 ;while true do if (v40==(0 + 0)) then while v17 do if ( not v16() or (v14.Health<=(0 -0))) then local v284=0 -0 ;while true do if (v284==(1739 -(404 + 1335))) then task.wait(1137 -(832 + 303) );continue;break;end end end local v248=v23();if v248 then v18=v248;local v285=v22(v248);local v286=v248:FindFirstChildOfClass(v7("\220\100\248\172\43\34\142\240","\231\148\17\149\205\69\77"));if (v285 and v286 and (v286.Health>(406 -(183 + 223)))) then local v288=0 + 0 ;local v289;while true do if ((3 + 0)==v288) then if (v9.SkillC and ((v289-v21)>=v9.SkillCDelay)) then v26(Enum.KeyCode.C);v21=v289;end break;end if ((2 -0)==v288) then if (v9.SkillZ and ((v289-v19)>=v9.SkillZDelay)) then local v304=0 + 0 ;local v305;while true do if (v304==(0 + 0)) then v305=337 -(10 + 327) ;while true do if (v305==(0 + 0)) then v26(Enum.KeyCode.Z);v19=v289;break;end end break;end end end if (v9.SkillX and ((v289-v20)>=v9.SkillXDelay)) then local v306=338 -(118 + 220) ;while true do if (v306==0) then v26(Enum.KeyCode.X);v20=v289;break;end end end v288=1 + 2 ;end if (v288==(450 -(108 + 341))) then v25();v289=tick();v288=2;end if ((0 + 0)==v288) then v24(v285.Position);task.wait(0.06 + 0 );v288=4 -3 ;end end end else v18=nil;task.wait(1494 -(711 + 782) );end task.wait(v9.AttackDelay);end v18=nil;break;end end end task.spawn(function() while true do task.wait(55);if v17 then pcall(function() local v249=0 + 0 ;local v250;while true do if ((0 -0)==v249) then v250=469 -(270 + 199) ;while true do if (v250==(2 -1)) then v11:SendKeyEvent(false,Enum.KeyCode.W,false,game);break;end if (v250==(0 + 0)) then v11:SendKeyEvent(true,Enum.KeyCode.W,false,game);task.wait(1819.1 -(580 + 1239) );v250=1149 -(556 + 592) ;end end break;end end end);end end end);v12.CharacterAdded:Connect(function(v41) v13=v41;v14=v41:WaitForChild(v7("\168\178\202\250\89\240\137\163","\159\224\199\167\155\55"));v15=v41:WaitForChild(v7("\223\230\49\211\249\252\53\214\197\252\51\198\199\242\46\198","\178\151\147\92"));if v17 then local v238=0 -0 ;while true do if (v238==(0 + 0)) then task.wait(856 -(174 + 680) );task.spawn(v27);break;end end end end);local function v28() local v42=v12.PlayerGui:FindFirstChild(v7("\173\232\88\61\52\77\104\129\218\121\27","\26\236\157\44\82\114\44"));if v42 then v42:Destroy();end local v43=Instance.new(v7("\25\45\199\94\47\32\242\78\35","\59\74\78\181"));v43.Name=v7("\4\196\78\85\149\36\195\87\125\134\12","\211\69\177\58\58");v43.ResetOnSpawn=false;v43.ZIndexBehavior=Enum.ZIndexBehavior.Sibling;v43.Parent=v12.PlayerGui;local v50,v51=270,540;local v52=Instance.new(v7("\145\247\120\248\236","\171\215\133\25\149\137"));v52.Name=v7("\204\201\59\244","\34\129\168\82\154\143\80\156");v52.Size=UDim2.new(0 -0 ,v50,0 + 0 ,v51);v52.Position=UDim2.new(0,6 + 6 ,0.06,0 + 0 );v52.BackgroundColor3=Color3.fromRGB(20 -12 ,1 + 7 ,1495 -(29 + 1448) );v52.BorderSizePixel=1389 -(135 + 1254) ;v52.Active=true;v52.Draggable=true;v52.ClipsDescendants=true;v52.Parent=v43;Instance.new(v7("\176\155\16\4\90\64\140\151","\233\229\210\83\107\40\46"),v52).CornerRadius=UDim.new(0 -0 ,8 + 4 );local v63=Instance.new(v7("\244\107\1\194\23\206\73\55","\101\161\34\82\182"),v52);v63.Color=Color3.fromRGB(50,74 + 36 ,1422 -(645 + 522) );v63.Thickness=1792 -(1010 + 780) ;local v66=Instance.new(v7("\206\31\88\243\222","\78\136\109\57\158\187\130\226"));v66.Size=UDim2.new(1,0 + 0 ,0 -0 ,134 -88 );v66.BackgroundColor3=Color3.fromRGB(9 + 6 ,1886 -(1045 + 791) ,1715 -(320 + 1225) );v66.BorderSizePixel=0 -0 ;v66.Parent=v52;Instance.new(v7("\11\22\218\254\44\49\252\227","\145\94\95\153"),v66).CornerRadius=UDim.new(0 -0 ,517 -(351 + 154) );local v72=Instance.new(v7("\219\223\21\216\75","\215\157\173\116\181\46"));v72.Size=UDim2.new(1575 -(1281 + 293) ,266 -(28 + 238) ,0 -0 ,1571 -(1381 + 178) );v72.Position=UDim2.new(0 -0 ,0 + 0 ,1, -(20 -8));v72.BackgroundColor3=Color3.fromRGB(15,19 + 31 ,421 -251 );v72.BorderSizePixel=0;v72.Parent=v66;local v78=Instance.new(v7("\1\177\147\230\246\52\182\142\254","\186\85\212\235\146"));v78.Size=UDim2.new(1027 -(834 + 192) , -50,1 + 0 ,0 + 0 );v78.Position=UDim2.new(0 + 0 ,6 + 6 ,0 -0 ,0 -0 );v78.BackgroundTransparency=1 + 0 ;v78.Text="⚔️  OTIMOS  |  Auto Farm";v78.TextColor3=Color3.fromRGB(725 -(381 + 89) ,255,227 + 28 );v78.TextScaled=true;v78.Font=Enum.Font.GothamBold;v78.TextXAlignment=Enum.TextXAlignment.Left;v78.Parent=v66;local v90=Instance.new(v7("\246\132\14\234\27\251\76\214\142\24","\56\162\225\118\158\89\142"));v90.Size=UDim2.new(362 -(112 + 250) ,21 + 9 ,0 -0 ,30);v90.Position=UDim2.new(1 + 0 , -(20 + 18),1156 -(1074 + 82) ,17 -9 );v90.BackgroundColor3=Color3.fromRGB(1814 -(214 + 1570) ,1535 -(990 + 465) ,91 + 129 );v90.Text="—";v90.TextColor3=Color3.fromRGB(111 + 144 ,190 + 65 ,1669 -(1001 + 413) );v90.TextScaled=true;v90.Font=Enum.Font.GothamBold;v90.Parent=v66;Instance.new(v7("\105\44\227\160\48\214\89\23","\184\60\101\160\207\66"),v90).CornerRadius=UDim.new(0 + 0 ,23 -17 );local v100=Instance.new(v7("\23\144\125\177\52","\220\81\226\28"));v100.Name=v7("\48\218\140\239\239\201\7","\167\115\181\226\155\138");v100.Size=UDim2.new(1727 -(1668 + 58) ,626 -(512 + 114) ,2 -1 , -(94 -48));v100.Position=UDim2.new(0 -0 ,0,0 + 0 ,1952 -(1665 + 241) );v100.BackgroundTransparency=1 + 0 ;v100.Parent=v52;local v106=false;v90.MouseButton1Click:Connect(function() v106= not v106;if v106 then v52:TweenSize(UDim2.new(0 + 0 ,v50,0 + 0 ,155 -109 ),Enum.EasingDirection.Out,Enum.EasingStyle.Quart,0.3 -0 ,true);v90.Text="▲";else v52:TweenSize(UDim2.new(1994 -(109 + 1885) ,v50,0,v51),Enum.EasingDirection.Out,Enum.EasingStyle.Quart,1469.3 -(1269 + 200) ,true);v90.Text="—";end end);local function v107(v183,v184,v185) local v186=0 -0 ;local v187;while true do if ((817 -(98 + 717))==v186) then v187.TextXAlignment=Enum.TextXAlignment.Left;v187.Parent=v100;return v187;end if (v186==(1 + 0)) then v187.Text=v183;v187.TextColor3=v185 or Color3.fromRGB(1006 -(802 + 24) ,310 -130 ,1 + 179 ) ;v187.TextScaled=true;v187.Font=Enum.Font.Gotham;v186=1238 -(298 + 938) ;end if (v186==(0 -0)) then v187=Instance.new(v7("\214\39\255\72\87\112\196\231\46","\166\130\66\135\60\27\17"));v187.Size=UDim2.new(1 + 0 , -(13 + 3),0 + 0 ,16);v187.Position=UDim2.new(0 + 0 ,8,0,v184);v187.BackgroundTransparency=2 -1 ;v186=1 + 0 ;end end end local v108=v107("Status: 🔴 Inativo",6);local v109=v107("Alvo: —",73 -51 ,Color3.fromRGB(36 + 64 ,74 + 106 ,211 + 44 ));local v110=v107(v7("\105\69\204\47\112\117\95\207\121\33\81\79\220\53\37\73","\80\36\42\174\21"),28 + 10 ,Color3.fromRGB(120 + 135 ,1633 -(797 + 636) ,291 -231 ));local v111=Instance.new(v7("\122\21\47\110\108\5\35\110\65\30","\26\46\112\87"));v111.Size=UDim2.new(3 -2 , -(1635 -(1427 + 192)),0 + 0 ,92 -52 );v111.Position=UDim2.new(0 + 0 ,4 + 4 ,0 + 0 ,388 -(192 + 134) );v111.BackgroundColor3=Color3.fromRGB(20,1376 -(316 + 960) ,240);v111.Text="▶  INICIAR AUTO FARM";v111.TextColor3=Color3.fromRGB(255,255,142 + 113 );v111.TextScaled=true;v111.Font=Enum.Font.GothamBold;v111.Parent=v100;Instance.new(v7("\140\10\136\123\173\177\64\166","\212\217\67\203\20\223\223\37"),v111).CornerRadius=UDim.new(0 + 0 ,5 + 3 );local function v121(v188,v189) local v190=0 + 0 ;local v191;while true do if (v190==(1134 -(549 + 584))) then v191.Position=UDim2.new(0,30 -22 ,551 -(83 + 468) ,v188);v191.BackgroundTransparency=686 -(314 + 371) ;v190=6 -4 ;end if (v190==(968 -(478 + 490))) then v191=Instance.new(v7("\142\136\176\198\150\140\170\215\182","\178\218\237\200"));v191.Size=UDim2.new(1 + 0 , -(1188 -(786 + 386)),1806 -(1202 + 604) ,83 -65 );v190=1341 -(1093 + 247) ;end if (v190==(4 -1)) then v191.TextScaled=true;v191.Font=Enum.Font.GothamBold;v190=4 + 0 ;end if ((10 -6)==v190) then v191.Parent=v100;break;end if (v190==(327 -(45 + 280))) then v191.Text="── "   .. v189   .. " ──" ;v191.TextColor3=Color3.fromRGB(78 + 2 ,123 + 17 ,94 + 161 );v190=2 + 1 ;end end end v121(19 + 89 ,v7("\133\158\207\252\154\134","\176\214\213\134"));local function v122(v192,v193,v194,v195) local v196=Instance.new(v7("\210\191\183\217\173","\57\148\205\214\180\200\54"));v196.Size=UDim2.new(2 -1 , -(29 -13),1911 -(340 + 1571) ,28);v196.Position=UDim2.new(0 + 0 ,1780 -(1733 + 39) ,0 -0 ,v194);v196.BackgroundColor3=Color3.fromRGB(1052 -(125 + 909) ,1966 -(1096 + 852) ,15 + 17 );v196.BorderSizePixel=0 -0 ;v196.Parent=v100;Instance.new(v7("\39\212\22\59\100\28\248\39","\22\114\157\85\84"),v196).CornerRadius=UDim.new(0 + 0 ,518 -(409 + 103) );local v203=Instance.new(v7("\240\206\11\208\113\247\170\193\199","\200\164\171\115\164\61\150"));v203.Size=UDim2.new(237 -(46 + 190) , -60,96 -(51 + 44) ,0 -0 );v203.Position=UDim2.new(0 + 0 ,1327 -(1114 + 203) ,726 -(228 + 498) ,1268 -(1249 + 19) );v203.BackgroundTransparency=1 + 0 ;v203.Text=v192   .. " "   .. v193 ;v203.TextColor3=Color3.fromRGB(48 + 172 ,122 + 98 ,856 -636 );v203.TextScaled=true;v203.Font=Enum.Font.GothamBold;v203.TextXAlignment=Enum.TextXAlignment.Left;v203.Parent=v196;local v215=Instance.new(v7("\138\241\27\81\161\171\224\23\74\141","\227\222\148\99\37"));v215.Size=UDim2.new(0,50,663 -(174 + 489) ,52 -32 );v215.Position=UDim2.new(1906 -(830 + 1075) , -(580 -(303 + 221)),1269.5 -(231 + 1038) , -10);v215.BackgroundColor3=Color3.fromRGB(831 -(721 + 90) ,134 + 26 ,1222 -(171 + 991) );v215.Text=v7("\28\124","\153\83\50\50\150");v215.TextColor3=Color3.fromRGB(1050 -795 ,684 -429 ,636 -381 );v215.TextScaled=true;v215.Font=Enum.Font.GothamBold;v215.Parent=v196;Instance.new(v7("\104\95\80\19\97\165\72\79","\45\61\22\19\124\19\203"),v215).CornerRadius=UDim.new(0 -0 ,4 + 0 );local v225=v9[v195];v215.MouseButton1Click:Connect(function() local v239=0 -0 ;local v240;while true do if (v239==(0 -0)) then v240=0 -0 ;while true do if ((0 -0)==v240) then v225= not v225;v9[v195]=v225;v240=1249 -(111 + 1137) ;end if (v240==(159 -(91 + 67))) then v215.BackgroundColor3=(v225 and Color3.fromRGB(59 -39 ,40 + 120 ,583 -(423 + 100) )) or Color3.fromRGB(2 + 158 ,40,110 -70 ) ;v215.Text=(v225 and v7("\238\60","\217\161\114\109\149\98\16")) or v7("\61\6\30","\20\114\64\88\28\220") ;break;end end break;end end end);end v122("⚡",v7("\2\10\219\184\244\144\135","\221\81\97\178\212\152\176"),68 + 62 ,v7("\254\236\20\247\22\247","\122\173\135\125\155"));v122("🔥",v7("\183\202\9\181\51\113\240","\168\228\161\96\217\95\81"),298 -136 ,v7("\232\218\39\80\35\111","\55\187\177\78\60\79"));v122("❄️",v7("\30\197\86\231\74\143\163","\224\77\174\63\139\38\175"),282 -88 ,v7("\183\74\81\34\136\98","\78\228\33\56"));v121(999 -(326 + 445) ,v7("\253\91\158\38\166\231\81\156\34\183\142\83\157\33","\229\174\30\210\99"));local v123=Instance.new(v7("\40\238\148\94\225\49\48\21\234\160\67\236\48\60","\89\123\141\230\49\141\93"));v123.Size=UDim2.new(4 -3 , -16,0 -0 ,531 -303 );v123.Position=UDim2.new(711 -(530 + 181) ,889 -(614 + 267) ,32 -(19 + 13) ,406 -156 );v123.BackgroundColor3=Color3.fromRGB(61 -47 ,6 + 8 ,60 -34 );v123.BorderSizePixel=0 -0 ;v123.ScrollBarThickness=2 + 2 ;v123.ScrollBarImageColor3=Color3.fromRGB(48 + 2 ,193 -83 ,528 -273 );v123.CanvasSize=UDim2.new(1812 -(1293 + 519) ,0 -0 ,0 -0 ,0);v123.AutomaticCanvasSize=Enum.AutomaticSize.Y;v123.Parent=v100;Instance.new(v7("\198\88\213\3\2\68\246\99","\42\147\17\150\108\112"),v123).CornerRadius=UDim.new(0 -0 ,6 + 0 );local v135=Instance.new(v7("\58\143\1\118\244\252\35\167\52\112\242\252","\136\111\198\77\31\135"),v123);v135.Padding=UDim.new(0,8 -6 );v135.SortOrder=Enum.SortOrder.LayoutOrder;local v139=Instance.new(v7("\55\32\151\87\185\224\30\167\5","\201\98\105\199\54\221\132\119"),v123);v139.PaddingTop=UDim.new(0 -0 ,437 -(114 + 319) );v139.PaddingBottom=UDim.new(0 -0 ,4 -0 );v139.PaddingLeft=UDim.new(0 + 0 ,3 + 1 );v139.PaddingRight=UDim.new(0 + 0 ,9 -5 );local v144=nil;local function v145(v226,v227,v228,v229) local v230=0 + 0 ;local v231;while true do if (v230==(0 + 0)) then v231=Instance.new(v7("\141\9\155\53\32\32\184\173\3\141","\204\217\108\227\65\98\85"));v231.Size=UDim2.new(1 + 0 ,1096 -(709 + 387) ,1858 -(673 + 1185) ,87 -57 );v231.BackgroundColor3=((v228==nil) and Color3.fromRGB(20,321 -221 ,394 -154 )) or Color3.fromRGB(18 + 6 ,18 + 6 ,34 + 6 ) ;v230=1 + 0 ;end if ((2 -0)==v230) then v231.Font=Enum.Font.GothamBold;v231.LayoutOrder=v226;v231.Parent=v123;v230=2 + 1 ;end if (v230==(1233 -(957 + 273))) then Instance.new(v7("\107\234\214\234\62\206\91\209","\160\62\163\149\133\76"),v231).CornerRadius=UDim.new(0 + 0 ,3 + 2 );if (v228==nil) then v144=v231;end v231.MouseButton1Click:Connect(function() if v144 then v144.BackgroundColor3=Color3.fromRGB(91 -67 ,24,10 + 30 );end v231.BackgroundColor3=Color3.fromRGB(39 -19 ,196 -96 ,1188 -948 );v144=v231;v9.SelectedMob=v228;v110.Text=v7("\251\175\15\117\131","\163\182\192\109\79")   .. (v228 or v7("\5\51\1\204\228\33\35\18\128\224\57","\149\84\70\96\160")) ;end);v230=1784 -(389 + 1391) ;end if (v230==4) then return v231;end if ((1881 -(446 + 1434))==v230) then v231.Text=v227;v231.TextColor3=(v229 and Color3.fromRGB(160 + 95 ,1493 -(1040 + 243) ,149 -99 )) or ((v228==nil) and Color3.fromRGB(1206 -(783 + 168) ,855 -600 ,2102 -(559 + 1288) )) or Color3.fromRGB(187 + 3 ,2121 -(609 + 1322) ,644 -(13 + 441) ) ;v231.TextScaled=true;v230=7 -5 ;end end end v145(0 -0 ,"🌐  Qualquer um",nil,false);local v146=Instance.new(v7("\30\20\12\224\61","\141\88\102\109"));v146.Size=UDim2.new(1,0 -0 ,0 -0 ,1 + 0 );v146.BackgroundColor3=Color3.fromRGB(145 -105 ,8 + 32 ,25 + 45 );v146.BorderSizePixel=0 + 0 ;v146.LayoutOrder=1;v146.Parent=v123;local v152=5 -3 ;local v153=Instance.new(v7("\135\86\210\100\54\60\87\196\191","\161\211\51\170\16\122\93\53"));v153.Size=UDim2.new(1 + 0 ,0 -0 ,0 + 0 ,12 + 8 );v153.BackgroundTransparency=1 + 0 ;v153.Text="  👑 BOSSES";v153.TextColor3=Color3.fromRGB(215 + 40 ,177 + 3 ,463 -(153 + 280) );v153.TextScaled=true;v153.Font=Enum.Font.GothamBold;v153.TextXAlignment=Enum.TextXAlignment.Left;v153.LayoutOrder=v152;v153.Parent=v123;v152+=(2 -1) for v232,v233 in ipairs(v8) do if v233.boss then local v245=15 -(6 + 9) ;local v246;while true do if (v245==0) then v246=0;while true do if (v246==(0 + 0)) then v145(v152,"  👑 "   .. v233.name ,v233.name,true);v152+=(1 + 0) break;end end break;end end end end local v163=Instance.new(v7("\207\171\170\60\215\175\176\45\247","\72\155\206\210"));v163.Size=UDim2.new(1 + 0 ,0 + 0 ,0 + 0 ,189 -(28 + 141) );v163.BackgroundTransparency=1 + 0 ;v163.Text="  🔹 MOBS";v163.TextColor3=Color3.fromRGB(152 -52 ,112 + 68 ,922 -(89 + 578) );v163.TextScaled=true;v163.Font=Enum.Font.GothamBold;v163.TextXAlignment=Enum.TextXAlignment.Left;v163.LayoutOrder=v152;v163.Parent=v123;v152+=(1 + 0) for v234,v235 in ipairs(v8) do if  not v235.boss then local v247=0 -0 ;while true do if (v247==(0 -0)) then v145(v152,"  🔹 "   .. v235.name ,v235.name,false);v152+=(3 -2) break;end end end end local v173=false;v111.MouseButton1Click:Connect(function() local v236=0;local v237;while true do if ((1049 -(572 + 477))==v236) then v237=0 + 0 ;while true do if (1==v237) then if v173 then local v296=0 + 0 ;while true do if (v296==(0 + 0)) then v111.BackgroundColor3=Color3.fromRGB(22 + 158 ,116 -(84 + 2) ,49 -19 );v111.Text="⏹  PARAR AUTO FARM";v296=1 + 0 ;end if (v296==(843 -(497 + 345))) then v108.Text="Status: 🟢 Ativo";task.spawn(v27);break;end end else v111.BackgroundColor3=Color3.fromRGB(1 + 19 ,17 + 83 ,1573 -(605 + 728) );v111.Text="▶  INICIAR AUTO FARM";v108.Text="Status: 🔴 Inativo";v18=nil;end break;end if ((0 + 0)==v237) then v173= not v173;v17=v173;v237=1;end end break;end end end);task.spawn(function() while true do task.wait(0.4 -0 );v109.Text=(v18 and (v7("\103\118\66\1\105\6","\83\38\26\52\110")   .. v18.Name)) or "Alvo: —" ;end end);end v28();print("✅ OTIMOS AutoFarm v4 carregado!");
+-- ==========================================
+--         CONFIGURAÃ‡Ã•ES
+-- ==========================================
+local CONFIG = {
+    SelectedMob      = nil,   -- nil = qualquer um
+    AttackDelay      = 0.08,
+    SkillZ           = true,
+    SkillX           = true,
+    SkillC           = true,
+    SkillZDelay      = 2,
+    SkillXDelay      = 3,
+    SkillCDelay      = 5,
+    SkillV           = true,
+    SkillVDelay      = 8,
+    SkillR           = true,
+    SkillRDelay      = 12,
+    AntiAFK          = true,   -- Anti-AFK toggle
+    AntiAFKDelay     = 55,     -- Intervalo anti-AFK (segundos)
+    AutoCollect      = true,   -- Auto coletar rewards
+    CollectDelay     = 0.5,    -- Intervalo entre checagens de reward
+    CollectRadius    = 20,     -- DistÃ¢ncia mÃ¡xima para detectar reward
+}
+
+-- ==========================================
+--         SERVIÃ‡OS / VARIÃVEIS
+-- ==========================================
+local Players    = game:GetService("Players")
+local VIM        = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
+local LP         = Players.LocalPlayer
+local Char, Hum, Root
+
+local function refreshChar()
+    Char = LP.Character
+    if not Char then return false end
+    Hum  = Char:FindFirstChildOfClass("Humanoid")
+    Root = Char:FindFirstChild("HumanoidRootPart")
+    return Hum ~= nil and Root ~= nil
+end
+refreshChar()
+
+local farmActive       = false
+local currentTarget    = nil
+local lastZ, lastX, lastC, lastV, lastR = 0, 0, 0, 0, 0
+local rewardCount      = 0   -- contador de rewards coletados
+
+-- ==========================================
+--         FUNÃ‡Ã•ES CORE
+-- ==========================================
+
+local function getRoot(model)
+    return model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("Root")
+        or model:FindFirstChildOfClass("BasePart")
+end
+
+local function findTarget()
+    local ES = workspace:FindFirstChild("EnemyService")
+    if not ES or not Root then return nil end
+
+    local best, bestDist = nil, math.huge
+
+    for _, model in ipairs(ES:GetChildren()) do
+        if CONFIG.SelectedMob then
+            local realName = model.Name:match("%]%s*(.+)$") or model.Name
+            if realName ~= CONFIG.SelectedMob then
+                continue
+            end
+        end
+
+        local hum  = model:FindFirstChildOfClass("Humanoid")
+        local root = getRoot(model)
+        if hum and root and hum.Health > 0 then
+            local dist = (Root.Position - root.Position).Magnitude
+            if dist < bestDist then
+                bestDist = dist
+                best = model
+            end
+        end
+    end
+    return best
+end
+
+local function teleportTo(pos)
+    Root.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
+end
+
+local function clickM1()
+    pcall(function()
+        VIM:SendMouseButtonEvent(0, 0, 0, true,  game, 1)
+        task.wait(0.06)
+        VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+    end)
+end
+
+local function pressKey(keyCode)
+    pcall(function()
+        VIM:SendKeyEvent(true,  keyCode, false, game)
+        task.wait(0.08)
+        VIM:SendKeyEvent(false, keyCode, false, game)
+    end)
+end
+
+-- ==========================================
+--    AUTO COLLECT REWARDS  (FireProximityPrompt)
+-- ==========================================
+--[[
+    EstratÃ©gia corrigida v4.4:
+    1. Varre workspace em busca de TODOS os ProximityPrompts ativos.
+    2. Filtra pelos que tÃªm KeyCode E (padrÃ£o "Mystery Reward / Gotcha").
+    3. Teleporta atÃ© o prompt, dispara FireProximityPrompt diretamente
+       â€” muito mais confiÃ¡vel que simular tecla via VIM.
+    4. Volta Ã  posiÃ§Ã£o anterior para nÃ£o atrapalhar o farm.
+]]
+
+-- ServiÃ§o necessÃ¡rio para disparar ProximityPrompt
+local ProximityPromptService = game:GetService("ProximityPromptService")
+
+-- Palavras que IDENTIFICAM rewards (whitelist)
+local REWARD_ALLOW = {
+    "gotcha", "mystery", "reward", "collect", "pickup",
+    "chest", "gift", "loot", "prize", "bonus", "crate", "token",
+}
+
+-- Palavras que BLOQUEIAM o prompt (blacklist) â€” quest, NPC, etc.
+local REWARD_BLOCK = {
+    "quest", "mission", "talk", "npc", "shop", "buy", "sell",
+    "start", "accept", "trade", "teleport", "warp", "open",
+    "enter", "exit", "interact", "speak", "minion", "soldier",
+    "boss", "portal", "dungeon", "level", "upgrade",
+}
+
+local function textAllowed(text)
+    if not text or text == "" then return false end
+    local lower = text:lower()
+    for _, kw in ipairs(REWARD_BLOCK) do
+        if lower:find(kw, 1, true) then return false end
+    end
+    for _, kw in ipairs(REWARD_ALLOW) do
+        if lower:find(kw, 1, true) then return true end
+    end
+    return false
+end
+
+-- Retorna o ProximityPrompt de reward mais prÃ³ximo dentro do raio
+local function findNearestRewardPrompt()
+    if not Root then return nil, nil, math.huge end
+
+    local bestPrompt, bestPart, bestDist = nil, nil, math.huge
+
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") and obj.Enabled
+            and obj.KeyboardKeyCode == Enum.KeyCode.E then
+
+            local action = obj.ActionText or ""
+            local object = obj.ObjectText or ""
+
+            -- SÃ³ aceita se ActionText OU ObjectText passar no filtro
+            if textAllowed(action) or textAllowed(object) then
+                local anchor = obj.Parent
+                local anchorPart = nil
+
+                if anchor and anchor:IsA("BasePart") then
+                    anchorPart = anchor
+                elseif anchor then
+                    anchorPart = getRoot(anchor)
+                end
+
+                if anchorPart then
+                    local dist = (Root.Position - anchorPart.Position).Magnitude
+                    if dist < CONFIG.CollectRadius and dist < bestDist then
+                        bestDist   = dist
+                        bestPrompt = obj
+                        bestPart   = anchorPart
+                    end
+                end
+            end
+        end
+    end
+
+    return bestPrompt, bestPart, bestDist
+end
+
+
+-- Dispara o ProximityPrompt de forma segura
+local function firePrompt(prompt)
+    -- MÃ©todo 1: FireProximityPrompt via serviÃ§o (mais confiÃ¡vel)
+    pcall(function()
+        fireproximityprompt(prompt)
+    end)
+    -- MÃ©todo 2: fallback via evento interno do Roblox
+    pcall(function()
+        prompt:InputHoldBegin()
+        task.wait(0.1)
+        prompt:InputHoldEnd()
+    end)
+end
+
+-- Loop dedicado ao collect â€” roda em paralelo ao farm
+local function collectLoop()
+    while CONFIG.AutoCollect do
+        task.wait(CONFIG.CollectDelay)
+
+        if not refreshChar() or Hum.Health <= 0 then
+            continue
+        end
+
+        local prompt, part, dist = findNearestRewardPrompt()
+
+        if prompt and part then
+            local prevPos = Root.CFrame
+
+            -- Teleporta para bem perto do reward (dentro do MaxActivationDistance)
+            local maxDist = prompt.MaxActivationDistance or 10
+            if dist > (maxDist - 1) then
+                teleportTo(part.Position)
+                task.wait(0.12)
+            end
+
+            -- Dispara o prompt diretamente
+            firePrompt(prompt)
+            task.wait(0.2)
+
+            rewardCount += 1
+
+            -- Volta ao farm se estava ativo
+            if farmActive and currentTarget then
+                Root.CFrame = prevPos
+            end
+        end
+    end
+end
+
+-- Inicia o loop de collect assim que o script Ã© executado
+task.spawn(collectLoop)
+
+-- ==========================================
+--         LOOP PRINCIPAL (FARM)
+-- ==========================================
+
+local function farmLoop()
+    while farmActive do
+        if not refreshChar() or Hum.Health <= 0 then
+            task.wait(2)
+            continue
+        end
+
+        local target = findTarget()
+
+        if target then
+            currentTarget = target
+            local root = getRoot(target)
+            local hum  = target:FindFirstChildOfClass("Humanoid")
+
+            if root and hum and hum.Health > 0 then
+                teleportTo(root.Position)
+                task.wait(0.06)
+
+                clickM1()
+
+                local now = tick()
+                if CONFIG.SkillZ and (now - lastZ) >= CONFIG.SkillZDelay then
+                    pressKey(Enum.KeyCode.Z)
+                    lastZ = now
+                end
+                if CONFIG.SkillX and (now - lastX) >= CONFIG.SkillXDelay then
+                    pressKey(Enum.KeyCode.X)
+                    lastX = now
+                end
+                if CONFIG.SkillC and (now - lastC) >= CONFIG.SkillCDelay then
+                    pressKey(Enum.KeyCode.C)
+                    lastC = now
+                end
+                if CONFIG.SkillV and (now - lastV) >= CONFIG.SkillVDelay then
+                    pressKey(Enum.KeyCode.V)
+                    lastV = now
+                end
+                if CONFIG.SkillR and (now - lastR) >= CONFIG.SkillRDelay then
+                    pressKey(Enum.KeyCode.R)
+                    lastR = now
+                end
+            end
+        else
+            currentTarget = nil
+            task.wait(1)
+        end
+
+        task.wait(CONFIG.AttackDelay)
+    end
+    currentTarget = nil
+end
+
+-- Anti-AFK (configurÃ¡vel)
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if CONFIG.AntiAFK then
+            local elapsed = tick() % CONFIG.AntiAFKDelay
+            if elapsed < 1 then
+                pcall(function()
+                    VIM:SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
+                    task.wait(0.1)
+                    VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                end)
+            end
+        end
+    end
+end)
+
+-- Reconecta ao respawn
+LP.CharacterAdded:Connect(function(c)
+    Char = c
+    Hum  = c:WaitForChild("Humanoid")
+    Root = c:WaitForChild("HumanoidRootPart")
+    if farmActive then
+        task.wait(2)
+        task.spawn(farmLoop)
+    end
+    -- Reinicia collect loop ao respawn
+    if CONFIG.AutoCollect then
+        task.spawn(collectLoop)
+    end
+end)
+
+-- ==========================================
+--              GUI
+-- ==========================================
+
+-- ==========================================
+--              GUI v5.1 â€” MOBILE FRIENDLY
+-- ==========================================
+
+-- ==========================================
+--        GUI v6 â€” SIDEBAR STYLE
+-- ==========================================
+
+-- ==========================================
+--        GUI v6 â€” SIDEBAR STYLE
+-- ==========================================
+
+local TweenService = game:GetService("TweenService")
+local UIS          = game:GetService("UserInputService")
+
+local function tw(obj, props, t)
+    TweenService:Create(obj, TweenInfo.new(t or 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
+end
+
+-- ConexÃ£o universal PC + Mobile
+local function onPress(obj, fn)
+    obj.MouseButton1Click:Connect(fn)
+    pcall(function() obj.TouchTap:Connect(fn) end)
+end
+
+-- Drag manual (funciona no mobile)
+local function makeDraggable(handle, target)
+    local drag, ds, sp = false, nil, nil
+    handle.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then
+            drag = true; ds = i.Position; sp = target.Position
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if not drag then return end
+        if i.UserInputType == Enum.UserInputType.MouseMovement
+        or i.UserInputType == Enum.UserInputType.Touch then
+            local d = i.Position - ds
+            local vp = workspace.CurrentCamera.ViewportSize
+            target.Position = UDim2.new(0,
+                math.clamp(sp.X.Offset + d.X, 0, vp.X - target.AbsoluteSize.X),
+                0,
+                math.clamp(sp.Y.Offset + d.Y, 0, vp.Y - target.AbsoluteSize.Y))
+        end
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then drag = false end
+    end)
+end
+
+local function createGUI()
+    local old = LP.PlayerGui:FindFirstChild("AutoFarmGUI")
+    if old then old:Destroy() end
+
+    local SG = Instance.new("ScreenGui")
+    SG.Name           = "AutoFarmGUI"
+    SG.ResetOnSpawn   = false
+    SG.IgnoreGuiInset = true
+    SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    SG.Parent         = LP.PlayerGui
+
+    -- â”€â”€ Paleta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    local BG    = Color3.fromRGB(18, 18, 28)
+    local SIDE  = Color3.fromRGB(13, 13, 22)
+    local CARD  = Color3.fromRGB(26, 26, 42)
+    local ACC   = Color3.fromRGB(80, 100, 255)
+    local GREEN = Color3.fromRGB(40, 200, 100)
+    local RED   = Color3.fromRGB(210, 50, 50)
+    local GOLD  = Color3.fromRGB(255, 195, 50)
+    local TEXT  = Color3.fromRGB(210, 210, 230)
+    local MUTED = Color3.fromRGB(100, 100, 130)
+    local SEP   = Color3.fromRGB(35, 35, 55)
+
+    local function corner(o,r) Instance.new("UICorner",o).CornerRadius=UDim.new(0,r or 8) end
+    local function stroke(o,c,t) local s=Instance.new("UIStroke",o) s.Color=c or SEP s.Thickness=t or 1 end
+    local function pad(o,t,b,l,r)
+        local p=Instance.new("UIPadding",o)
+        p.PaddingTop=UDim.new(0,t or 0) p.PaddingBottom=UDim.new(0,b or 0)
+        p.PaddingLeft=UDim.new(0,l or 0) p.PaddingRight=UDim.new(0,r or 0)
+    end
+    local function vlist(o,g)
+        local l=Instance.new("UIListLayout",o)
+        l.Padding=UDim.new(0,g or 0) l.SortOrder=Enum.SortOrder.LayoutOrder
+        l.FillDirection=Enum.FillDirection.Vertical return l
+    end
+
+    local function mkLabel(p,txt,sz,col,bold,xa)
+        local l=Instance.new("TextLabel") l.Size=sz or UDim2.new(1,0,0,20)
+        l.BackgroundTransparency=1 l.Text=txt l.TextColor3=col or TEXT
+        l.TextScaled=true l.Font=bold and Enum.Font.GothamBold or Enum.Font.Gotham
+        l.TextXAlignment=xa or Enum.TextXAlignment.Left l.Parent=p return l
+    end
+
+    -- â”€â”€ Tamanho adaptativo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    local vp   = workspace.CurrentCamera.ViewportSize
+    local WW   = math.min(420, vp.X - 16)
+    local WH   = math.min(500, vp.Y - 60)
+    local SW   = 100   -- largura sidebar
+    local HH   = 42    -- altura header
+
+    -- â”€â”€ Janela principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    local WIN = Instance.new("Frame")
+    WIN.Name             = "Main"
+    WIN.Size             = UDim2.new(0, WW, 0, WH + HH)
+    WIN.Position         = UDim2.new(0, 10, 0, 44)
+    WIN.BackgroundColor3 = BG
+    WIN.BorderSizePixel  = 0
+    WIN.ClipsDescendants = true
+    WIN.Parent           = SG
+    corner(WIN, 12)
+    stroke(WIN, Color3.fromRGB(50,50,80), 1.5)
+
+    -- â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    local HDR = Instance.new("Frame")
+    HDR.Size             = UDim2.new(1,0,0,HH)
+    HDR.BackgroundColor3 = SIDE
+    HDR.BorderSizePixel  = 0
+    HDR.Parent           = WIN
+
+    -- Logo
+    local Logo = Instance.new("Frame")
+    Logo.Size = UDim2.new(0,28,0,28)
+    Logo.Position = UDim2.new(0,10,0.5,-14)
+    Logo.BackgroundColor3 = ACC
+    Logo.BorderSizePixel = 0
+    Logo.Parent = HDR
+    corner(Logo, 6)
+    local LogoTxt = Instance.new("TextLabel")
+    LogoTxt.Size = UDim2.new(1,0,1,0)
+    LogoTxt.BackgroundTransparency = 1
+    LogoTxt.Text = "H"
+    LogoTxt.TextColor3 = Color3.new(1,1,1)
+    LogoTxt.TextScaled = true
+    LogoTxt.Font = Enum.Font.GothamBold
+    LogoTxt.Parent = Logo
+
+    mkLabel(HDR,"OTIMOS",UDim2.new(0,90,1,0),TEXT,true).Position=UDim2.new(0,44,0,0)
+    mkLabel(HDR,"v6.0",UDim2.new(0,40,1,0),MUTED,false).Position=UDim2.new(0,136,0,0)
+
+    -- BotÃ£o minimizar
+    local MinBtn = Instance.new("TextButton")
+    MinBtn.Size = UDim2.new(0,28,0,28)
+    MinBtn.Position = UDim2.new(1,-36,0.5,-14)
+    MinBtn.BackgroundColor3 = RED
+    MinBtn.Text = "â€”"
+    MinBtn.TextColor3 = Color3.new(1,1,1)
+    MinBtn.TextScaled = true
+    MinBtn.Font = Enum.Font.GothamBold
+    MinBtn.BorderSizePixel = 0
+    MinBtn.Parent = HDR
+    corner(MinBtn, 6)
+
+    local minimized = false
+    local FULL_SIZE = UDim2.new(0, WW, 0, WH + HH)
+    local MINI_SIZE = UDim2.new(0, WW, 0, HH)
+    onPress(MinBtn, function()
+        minimized = not minimized
+        tw(WIN, {Size = minimized and MINI_SIZE or FULL_SIZE}, 0.3)
+        MinBtn.Text = minimized and "â–²" or "â€”"
+    end)
+
+    -- Drag pelo header
+    makeDraggable(HDR, WIN)
+
+    -- â”€â”€ Body (sidebar + content) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    local Body = Instance.new("Frame")
+    Body.Name = "Body"
+    Body.Size = UDim2.new(1,0,1,-HH)
+    Body.Position = UDim2.new(0,0,0,HH)
+    Body.BackgroundTransparency = 1
+    Body.BorderSizePixel = 0
+    Body.Parent = WIN
+
+    -- Sidebar
+    local Sidebar = Instance.new("Frame")
+    Sidebar.Size = UDim2.new(0,SW,1,0)
+    Sidebar.BackgroundColor3 = SIDE
+    Sidebar.BorderSizePixel = 0
+    Sidebar.Parent = Body
+    vlist(Sidebar, 0)
+
+    -- Content area
+    local Content = Instance.new("ScrollingFrame")
+    Content.Size = UDim2.new(1,-SW,1,0)
+    Content.Position = UDim2.new(0,SW,0,0)
+    Content.BackgroundTransparency = 1
+    Content.BorderSizePixel = 0
+    Content.ScrollBarThickness = 3
+    Content.ScrollBarImageColor3 = ACC
+    Content.CanvasSize = UDim2.new(0,0,0,0)
+    Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Content.ScrollingDirection = Enum.ScrollingDirection.Y
+    Content.Parent = Body
+    pad(Content,14,20,14,10)
+    vlist(Content, 14)
+
+    -- â”€â”€ Abas (sidebar) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    local tabs = {}
+    local activeTab = nil
+    local pages = {}  -- pageKey â†’ Frame visÃ­vel no Content
+
+    local function addTab(icon, label, key, order)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1,0,0,54)
+        btn.BackgroundColor3 = SIDE
+        btn.BorderSizePixel = 0
+        btn.Text = ""
+        btn.LayoutOrder = order
+        btn.AutoButtonColor = false
+        btn.Parent = Sidebar
+        corner(btn, 0)
+
+        -- Indicador lateral
+        local indicator = Instance.new("Frame")
+        indicator.Size = UDim2.new(0,3,0.6,0)
+        indicator.Position = UDim2.new(0,0,0.2,0)
+        indicator.BackgroundColor3 = ACC
+        indicator.BackgroundTransparency
