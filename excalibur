@@ -89,6 +89,1558 @@ end
 --         CONFIGURAÇÕES
 -- ==========================================
 local CONFIG = {
+    SelectedMob      = "Valstrax[Hard]",
+    AttackDelay      = 0.05, 
+    SkillZ           = true,
+    SkillX           = true,
+    SkillC           = true,
+    SkillZDelay      = 0,
+    SkillXDelay      = 1,
+    SkillCDelay      = 1,
+    SkillV           = true,
+    SkillVDelay      = 1,
+    SkillR           = true,
+    SkillRDelay      = 12,
+    AntiAFK          = false,  -- Desativado anti-AFK
+    AntiAFKDelay     = 120,
+    AutoCollect      = false,   -- Desativado coleta automática
+    CollectDelay     = 0.5,
+    CollectRadius    = 20,
+}
+
+-- ==========================================
+--   CONFIGURAÇÕES DO RAID
+-- ==========================================
+local RAID_CONFIG = {
+    AutoStartRaid    = true,           -- Inicia raid automaticamente ao executar o script
+    DefaultMode      = "Hard",    -- Modo padrão
+    TeleportPos      = Vector3.new(510.0012512207031, 198.90391540527344, -3219.46435546875),
+    
+    -- Posições dos botões na tela (calibradas)
+    Positions = {
+        Common    = Vector2.new(772,  320),
+        Hard      = Vector2.new(901,  319),
+        Nightmare = Vector2.new(1044, 319),
+        Start     = Vector2.new(1243, 679),
+    },
+    
+    -- Delays entre as ações do auto-start
+    DelayAfterTP     = 2.5,   -- Espera após teleporte (GUI do Raid abrir)
+    DelayAfterMode   = 0.8,   -- Espera após selecionar modo
+    DelayAfterStart  = 0.5,   -- Espera após clicar Start
+}
+
+-- ==========================================
+--         SERVIÇOS
+-- ==========================================
+local Players      = game:GetService("Players")
+local HttpService  = game:GetService("HttpService")
+local VIM          = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
+local UIS          = game:GetService("UserInputService")
+
+local LP = Players.LocalPlayer
+local Char, Hum, Root
+
+local function refreshChar()
+    Char = LP.Character
+    if not Char then return false end
+    Hum  = Char:FindFirstChildOfClass("Humanoid")
+    Root = Char:FindFirstChild("HumanoidRootPart")
+    return Hum ~= nil and Root ~= nil
+end
+refreshChar()
+
+-- ==========================================
+--    DETECÇÃO AUTOMÁTICA DE MOBS/BOSSES
+-- ==========================================
+local function scanMobList()
+    local ES = workspace:FindFirstChild("EnemyService")
+    if not ES then return {} end
+    local seen = {}
+    for _, model in ipairs(ES:GetChildren()) do
+        local realName = model.Name:match("%]%s*(.+)$") or model.Name
+        if realName and realName ~= "" then
+            local hum = model:FindFirstChildOfClass("Humanoid")
+            local hp  = hum and hum.MaxHealth or 0
+            if not seen[realName] or hp > seen[realName] then
+                seen[realName] = hp
+            end
+        end
+    end
+    local bosses, mobs = {}, {}
+    for name, maxHP in pairs(seen) do
+        local isBoss = KNOWN_BOSSES[name] or (maxHP >= BOSS_HP_THRESHOLD)
+        if isBoss then table.insert(bosses, name)
+        else           table.insert(mobs,   name) end
+    end
+    table.sort(bosses); table.sort(mobs)
+    local result = {}
+    for _, n in ipairs(bosses) do table.insert(result, { name = n, boss = true  }) end
+    for _, n in ipairs(mobs)   do table.insert(result, { name = n, boss = false }) end
+    return result
+end
+
+-- ==========================================
+--         VARIÁVEIS GLOBAIS
+-- ==========================================
+local farmActive    = false
+local collectActive = false
+local currentTarget = nil
+local lastZ, lastX, lastC, lastV, lastR = 0, 0, 0, 0, 0
+local rewardCount   = 0
+local killCount     = 0
+local farmStatusText = "Aguardando..."
+local trackedDeaths = setmetatable({}, { __mode = "k" })
+local connectedHums = setmetatable({}, { __mode = "k" })
+
+-- ==========================================
+--   WEBHOOK DISCORD
+-- ==========================================
+local PROXY_URL = "https://webhook.lewisakura.moe/api/webhooks/1512937255755452427/c9lo-IjQtDJ5FRAy0TxTjxw3bxoR_v5iSGDiukohFEeWX6D3O_kJZr5ZhhllAY7hpM3w"
+
+task.spawn(function()
+    task.wait(3)
+    local ok, err = pcall(function()
+        local name   = LP and LP.Name or "Desconhecido"
+        local userId = LP and tostring(LP.UserId) or "?"
+        local payload = HttpService:JSONEncode({
+            username = "OTIMOS Farm",
+            embeds = {{
+                title = "⚔️ Script Executado",
+                color = 5614830,
+                fields = {
+                    { name = "👤 Player",  value = name .. " (" .. userId .. ")", inline = true },
+                    { name = "🕐 Horário", value = os.date("%d/%m/%Y %H:%M:%S"),  inline = true },
+                    { name = "📦 Versão",  value = "v8.0 — Raid Auto-Start",      inline = true },
+                },
+                footer = { text = "OTIMOS AutoFarm v8.0" }
+            }}
+        })
+        HttpService:PostAsync(PROXY_URL, payload, Enum.HttpContentType.ApplicationJson, false)
+    end)
+    if not ok then warn("[OTIMOS Webhook] " .. tostring(err)) end
+end)
+
+-- ==========================================
+--         FUNÇÕES CORE
+-- ==========================================
+local function getRoot(model)
+    return model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("Root")
+        or model:FindFirstChildOfClass("BasePart")
+end
+
+local function trackMobDeath(model, hum)
+    if not hum or connectedHums[hum] then return end
+    connectedHums[hum] = true
+    hum.Died:Connect(function()
+        if not trackedDeaths[model] then
+            trackedDeaths[model] = true
+            killCount += 1
+        end
+    end)
+    model.AncestryChanged:Connect(function(_, parent)
+        if parent == nil and not trackedDeaths[model] then
+            if hum.Health <= 0 then
+                trackedDeaths[model] = true
+                killCount += 1
+            end
+        end
+    end)
+end
+
+local function findTarget(forceAny)
+    local ES = workspace:FindFirstChild("EnemyService")
+    if not ES or not Root then return nil end
+    local best, bestDist = nil, math.huge
+    local filterMob = (not forceAny) and CONFIG.SelectedMob or nil
+    for _, model in ipairs(ES:GetChildren()) do
+        local hum  = model:FindFirstChildOfClass("Humanoid")
+        local root = getRoot(model)
+        if not hum or not root or hum.Health <= 0 then continue end
+        if filterMob then
+            local fullName = model.Name
+            local realName = fullName:match("%]%s*(.+)$") or fullName
+            if realName ~= filterMob and fullName ~= filterMob then continue end
+        end
+        if hum then trackMobDeath(model, hum) end
+        local dist = (Root.Position - root.Position).Magnitude
+        if dist < bestDist then bestDist = dist; best = model end
+    end
+    return best
+end
+
+local function teleportTo(pos)
+    Root.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
+end
+
+local function clickM1()
+    pcall(function()
+        VIM:SendMouseButtonEvent(0, 0, 0, true,  game, 1)
+        task.wait(0.06)
+        VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+    end)
+end
+
+local function pressKey(keyCode)
+    pcall(function()
+        VIM:SendKeyEvent(true,  keyCode, false, game)
+        task.wait(0.08)
+        VIM:SendKeyEvent(false, keyCode, false, game)
+    end)
+end
+
+-- ==========================================
+--   FUNÇÕES DO RAID (clique por posição)
+-- ==========================================
+local function clickScreenPos(pos)
+    pcall(function()
+        VIM:SendMouseMoveEvent(pos.X, pos.Y, game)
+        task.wait(0.05)
+        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true,  game, 1)
+        task.wait(0.05)
+        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
+    end)
+end
+
+local raidStatusText = "Aguardando..."
+local selectedRaidMode = RAID_CONFIG.DefaultMode
+
+local function clickDifficulty(name)
+    for _, obj in ipairs(PlayerGui:GetDescendants()) do
+        if obj.Name == name and obj:IsA("Frame") and obj.Visible then
+            local pos = obj.AbsolutePosition
+            local size = obj.AbsoluteSize
+
+            local cx = math.floor(pos.X + size.X / 2)
+            local cy = math.floor(pos.Y + size.Y / 2)
+
+            VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+            task.wait(0.1)
+            VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+            return true
+        end
+    end
+    return false
+end
+
+local function selectRaidMode(mode)
+    if clickDifficulty(mode) then
+        selectedRaidMode = mode
+        raidStatusText = "✅ Modo: " .. mode
+        print("[Raid] Modo selecionado:", mode)
+    else
+        raidStatusText = "❌ Botão " .. mode .. " não encontrado"
+        warn("[Raid] Não encontrou:", mode)
+    end
+end
+
+local function clickRaidStart()
+    clickScreenPos(RAID_CONFIG.Positions.Start)
+    raidStatusText = "🚀 Raid iniciado!"
+    print("[Raid] Start clicado!")
+end
+
+-- Teleporta para área do Raid, seleciona modo e dá start
+local function autoStartRaid(mode)
+    mode = mode or selectedRaidMode
+    raidStatusText = "🚀 Teleportando..."
+    print("[Raid] Teleportando para o Raid...")
+
+    -- 1. Teleporta
+    if not refreshChar() or not Root then
+        raidStatusText = "❌ Sem personagem!"
+        return
+    end
+    Root.CFrame = CFrame.new(RAID_CONFIG.TeleportPos + Vector3.new(0, 4, 0))
+
+    -- 2. Aguarda GUI do Raid abrir
+    raidStatusText = "⏳ Aguardando GUI..."
+    task.wait(RAID_CONFIG.DelayAfterTP)
+
+    -- 3. Seleciona o modo
+    raidStatusText = "🎯 Selecionando " .. mode .. "..."
+    selectRaidMode(mode)
+    task.wait(RAID_CONFIG.DelayAfterMode)
+
+    -- 4. Clica em Start
+    raidStatusText = "▶ Clicando Start..."
+    clickRaidStart()
+    task.wait(RAID_CONFIG.DelayAfterStart)
+
+    raidStatusText = "✅ Raid " .. mode .. " iniciado!"
+end
+
+-- ==========================================
+--    AUTO COLLECT REWARDS
+-- ==========================================
+local REWARD_ALLOW = {
+    "gotcha","mystery","reward","collect","pickup",
+    "chest","gift","loot","prize","bonus","crate","token"
+}
+local REWARD_BLOCK = {
+    "quest","mission","talk","npc","shop","buy","sell","start",
+    "accept","trade","teleport","warp","open","enter","exit",
+    "interact","speak","minion","soldier","boss","portal","dungeon",
+    "level","upgrade"
+}
+
+local function textAllowed(text)
+    if not text or text == "" then return false end
+    local lower = text:lower()
+    for _, kw in ipairs(REWARD_BLOCK) do if lower:find(kw, 1, true) then return false end end
+    for _, kw in ipairs(REWARD_ALLOW) do if lower:find(kw, 1, true) then return true  end end
+    return false
+end
+
+local function findNearestRewardPrompt()
+    if not Root then return nil, nil, math.huge end
+    local bestPrompt, bestPart, bestDist = nil, nil, math.huge
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") and obj.Enabled
+            and obj.KeyboardKeyCode == Enum.KeyCode.E then
+            local action = obj.ActionText or ""
+            local object = obj.ObjectText or ""
+            if textAllowed(action) or textAllowed(object) then
+                local anchor = obj.Parent
+                local anchorPart = anchor and (anchor:IsA("BasePart") and anchor or getRoot(anchor))
+                if anchorPart then
+                    local dist = (Root.Position - anchorPart.Position).Magnitude
+                    if dist < CONFIG.CollectRadius and dist < bestDist then
+                        bestDist = dist; bestPrompt = obj; bestPart = anchorPart
+                    end
+                end
+            end
+        end
+    end
+    return bestPrompt, bestPart, bestDist
+end
+
+local function firePrompt(prompt)
+    pcall(function() fireproximityprompt(prompt) end)
+    pcall(function() prompt:InputHoldBegin(); task.wait(0.1); prompt:InputHoldEnd() end)
+end
+
+local function collectLoop()
+    if collectActive then return end
+    collectActive = true
+    while collectActive and CONFIG.AutoCollect do
+        task.wait(CONFIG.CollectDelay)
+        if not refreshChar() or Hum.Health <= 0 then continue end
+        local prompt, part, dist = findNearestRewardPrompt()
+        if prompt and part then
+            local prevPos = Root.CFrame
+            local maxDist = prompt.MaxActivationDistance or 10
+            if dist > (maxDist - 1) then teleportTo(part.Position); task.wait(0.12) end
+            firePrompt(prompt)
+            task.wait(0.2)
+            rewardCount += 1
+            if farmActive and currentTarget then Root.CFrame = prevPos end
+        end
+    end
+    collectActive = false
+end
+
+if CONFIG.AutoCollect then task.spawn(collectLoop) end
+
+-- ==========================================
+--         LOOP PRINCIPAL (FARM)
+-- ==========================================
+local function farmLoop()
+    while farmActive do
+        if not refreshChar() or Hum.Health <= 0 then task.wait(2); continue end
+
+        local target = findTarget(false)
+
+        if target then
+            farmStatusText = "⚔️ Atacando: " .. (CONFIG.SelectedMob or "Qualquer um")
+        elseif CONFIG.SelectedMob then
+            farmStatusText = "⏳ Aguardando " .. CONFIG.SelectedMob .. "..."
+        else
+            farmStatusText = "🔍 Procurando mobs..."
+        end
+
+        if target then
+            currentTarget = target
+            local root = getRoot(target)
+            local hum  = target:FindFirstChildOfClass("Humanoid")
+            if hum then trackMobDeath(target, hum) end
+
+            local stillValid = root and hum and hum.Health > 0
+                and target.Parent ~= nil
+
+            if stillValid then
+                teleportTo(root.Position)
+                task.wait(0.06)
+
+                if hum.Health > 0 and target.Parent ~= nil then
+                    clickM1()
+                    local now = tick()
+                    if CONFIG.SkillZ and (now-lastZ) >= CONFIG.SkillZDelay then pressKey(Enum.KeyCode.Z); lastZ=now end
+                    if CONFIG.SkillX and (now-lastX) >= CONFIG.SkillXDelay then pressKey(Enum.KeyCode.X); lastX=now end
+                    if CONFIG.SkillC and (now-lastC) >= CONFIG.SkillCDelay then pressKey(Enum.KeyCode.C); lastC=now end
+                    if CONFIG.SkillV and (now-lastV) >= CONFIG.SkillVDelay then pressKey(Enum.KeyCode.V); lastV=now end
+                    if CONFIG.SkillR and (now-lastR) >= CONFIG.SkillRDelay then pressKey(Enum.KeyCode.R); lastR=now end
+                else
+                    currentTarget = nil
+                end
+            else
+                currentTarget = nil
+            end
+        else
+            currentTarget = nil
+            if not CONFIG.SelectedMob then
+                farmStatusText = "🔍 Procurando mobs..."
+            end
+            pcall(function()
+                VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+            end)
+            task.wait(0.15)
+        end
+        task.wait(CONFIG.AttackDelay)
+    end
+    currentTarget = nil
+    farmStatusText = "Inativo"
+end
+
+-- ==========================================
+--         ANTI-AFK
+-- ==========================================
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if CONFIG.AntiAFK then
+            local elapsed = tick() % CONFIG.AntiAFKDelay
+            if elapsed < 1 then
+                pcall(function()
+                    VIM:SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
+                    task.wait(0.1)
+                    VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                end)
+            end
+        end
+    end
+end)
+
+-- ==========================================
+--         RESPAWN (PERSONAGEM)
+-- ==========================================
+LP.CharacterAdded:Connect(function(c)
+    Char = c
+    Hum  = c:WaitForChild("Humanoid")
+    Root = c:WaitForChild("HumanoidRootPart")
+    if farmActive then task.wait(2); task.spawn(farmLoop) end
+    if CONFIG.AutoCollect and not collectActive then task.spawn(collectLoop) end
+end)
+
+-- ==========================================
+--              GUI v8.0
+-- ==========================================
+local function tw(obj, props, t)
+    TweenService:Create(obj, TweenInfo.new(t or 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
+end
+
+local function createGUI()
+    local old = LP.PlayerGui:FindFirstChild("AutoFarmGUI")
+    if old then old:Destroy() end
+
+    local C = {
+        bg      = Color3.fromRGB(13, 13, 26),
+        sidebar = Color3.fromRGB(10, 10, 20),
+        panel   = Color3.fromRGB(18, 18, 36),
+        card    = Color3.fromRGB(24, 24, 46),
+        accent  = Color3.fromRGB(55, 111, 255),
+        green   = Color3.fromRGB(30, 180, 80),
+        red     = Color3.fromRGB(210, 40, 40),
+        gold    = Color3.fromRGB(255, 200, 50),
+        text    = Color3.fromRGB(225, 225, 255),
+        muted   = Color3.fromRGB(110, 110, 150),
+        border  = Color3.fromRGB(38, 38, 76),
+        youtube = Color3.fromRGB(200, 30, 30),
+        tpBlue  = Color3.fromRGB(30, 120, 220),
+        orange  = Color3.fromRGB(255, 160, 30),
+        purple  = Color3.fromRGB(160, 60, 255),
+        night   = Color3.fromRGB(180, 30, 30),   -- cor do Nightmare
+    }
+
+    local function corner(o, r) Instance.new("UICorner", o).CornerRadius = UDim.new(0, r or 12) end
+    local function stroke(o, col, th)
+        local s = Instance.new("UIStroke", o); s.Color = col or C.border; s.Thickness = th or 1.5
+    end
+    local function pad(o, t, b, l, r)
+        local p = Instance.new("UIPadding", o)
+        p.PaddingTop = UDim.new(0, t or 0); p.PaddingBottom = UDim.new(0, b or 0)
+        p.PaddingLeft = UDim.new(0, l or 0); p.PaddingRight = UDim.new(0, r or 0)
+    end
+    local function vlist(o, gap)
+        local l = Instance.new("UIListLayout", o)
+        l.Padding = UDim.new(0, gap or 8)
+        l.FillDirection = Enum.FillDirection.Vertical
+        l.SortOrder = Enum.SortOrder.LayoutOrder
+        l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        return l
+    end
+    local function hlist(o, gap)
+        local l = Instance.new("UIListLayout", o)
+        l.Padding = UDim.new(0, gap or 6)
+        l.FillDirection = Enum.FillDirection.Horizontal
+        l.SortOrder = Enum.SortOrder.LayoutOrder
+        l.VerticalAlignment = Enum.VerticalAlignment.Center
+        return l
+    end
+    local function lbl(parent, txt, h, col, bold, xa)
+        local l = Instance.new("TextLabel")
+        l.Size = UDim2.new(1, 0, 0, h or 24)
+        l.BackgroundTransparency = 1
+        l.Text = txt
+        l.TextColor3 = col or C.text
+        l.TextScaled = true
+        l.Font = bold and Enum.Font.GothamBold or Enum.Font.Gotham
+        l.TextXAlignment = xa or Enum.TextXAlignment.Left
+        l.Parent = parent
+        return l
+    end
+    local function onPress(obj, fn)
+        obj.MouseButton1Click:Connect(fn)
+        obj.TouchTap:Connect(fn)
+    end
+    local function makeDraggable(handle, target)
+        local dragging, dragStart, startPos = false, nil, nil
+        handle.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseButton1
+            or i.UserInputType == Enum.UserInputType.Touch then
+                dragging = true; dragStart = i.Position; startPos = target.Position
+            end
+        end)
+        UIS.InputChanged:Connect(function(i)
+            if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement
+             or i.UserInputType == Enum.UserInputType.Touch) then
+                local d = i.Position - dragStart
+                local vp = workspace.CurrentCamera.ViewportSize
+                target.Position = UDim2.new(
+                    startPos.X.Scale,
+                    math.clamp(startPos.X.Offset + d.X, 0, vp.X - target.AbsoluteSize.X),
+                    startPos.Y.Scale,
+                    math.clamp(startPos.Y.Offset + d.Y, 0, vp.Y - target.AbsoluteSize.Y)
+                )
+            end
+        end)
+        UIS.InputEnded:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseButton1
+            or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
+        end)
+    end
+
+    local vp        = workspace.CurrentCamera.ViewportSize
+    local WIN_W     = math.min(340, vp.X - 12)
+    local WIN_H     = math.min(600, vp.Y - 60)
+    local MINI_H    = 52
+    local SIDEBAR_W = 64
+
+    local SG = Instance.new("ScreenGui")
+    SG.Name = "AutoFarmGUI"
+    SG.ResetOnSpawn = false
+    SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    SG.IgnoreGuiInset = true
+    SG.Parent = LP.PlayerGui
+
+    local WIN = Instance.new("Frame")
+    WIN.Name = "Main"
+    WIN.Size = UDim2.new(0, WIN_W, 0, WIN_H)
+    WIN.Position = UDim2.new(0, 8, 0, 44)
+    WIN.BackgroundColor3 = C.bg
+    WIN.BorderSizePixel = 0
+    WIN.ClipsDescendants = true
+    WIN.Parent = SG
+    corner(WIN, 18)
+    stroke(WIN, C.accent, 2)
+
+    local TopBar = Instance.new("Frame")
+    TopBar.Size = UDim2.new(1, 0, 0, MINI_H)
+    TopBar.BackgroundColor3 = C.panel
+    TopBar.BorderSizePixel = 0
+    TopBar.ZIndex = 4
+    TopBar.Parent = WIN
+    corner(TopBar, 18)
+    local fix = Instance.new("Frame", TopBar)
+    fix.Size = UDim2.new(1, 0, 0, 18); fix.Position = UDim2.new(0, 0, 1, -18)
+    fix.BackgroundColor3 = C.panel; fix.BorderSizePixel = 0
+
+    local titleLbl = Instance.new("TextLabel", TopBar)
+    titleLbl.Size = UDim2.new(1, -160, 1, 0); titleLbl.Position = UDim2.new(0, 14, 0, 0)
+    titleLbl.BackgroundTransparency = 1; titleLbl.Text = "⚔️  OTIMOS Farm v8.0"
+    titleLbl.TextColor3 = C.text; titleLbl.TextScaled = true
+    titleLbl.Font = Enum.Font.GothamBold; titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local Pill = Instance.new("Frame", TopBar)
+    Pill.Size = UDim2.new(0, 72, 0, 28); Pill.Position = UDim2.new(1, -152, 0.5, -14)
+    Pill.BackgroundColor3 = C.red; Pill.BorderSizePixel = 0; corner(Pill, 14)
+    local PillTxt = Instance.new("TextLabel", Pill)
+    PillTxt.Size = UDim2.new(1, 0, 1, 0); PillTxt.BackgroundTransparency = 1
+    PillTxt.Text = "● OFF"; PillTxt.TextColor3 = Color3.new(1, 1, 1)
+    PillTxt.TextScaled = true; PillTxt.Font = Enum.Font.GothamBold
+    PillTxt.TextXAlignment = Enum.TextXAlignment.Center
+
+    local MinBtn = Instance.new("TextButton", TopBar)
+    MinBtn.Size = UDim2.new(0, 36, 0, 36); MinBtn.Position = UDim2.new(1, -76, 0.5, -18)
+    MinBtn.BackgroundColor3 = C.card; MinBtn.BorderSizePixel = 0
+    MinBtn.Text = "—"; MinBtn.TextColor3 = C.muted; MinBtn.TextScaled = true
+    MinBtn.Font = Enum.Font.GothamBold; MinBtn.ZIndex = 5
+    corner(MinBtn, 10); stroke(MinBtn, C.border, 1)
+
+    local CloseBtn = Instance.new("TextButton", TopBar)
+    CloseBtn.Size = UDim2.new(0, 36, 0, 36); CloseBtn.Position = UDim2.new(1, -36, 0.5, -18)
+    CloseBtn.BackgroundColor3 = Color3.fromRGB(130, 20, 20); CloseBtn.BorderSizePixel = 0
+    CloseBtn.Text = "✕"; CloseBtn.TextColor3 = Color3.new(1, 1, 1)
+    CloseBtn.TextScaled = true; CloseBtn.Font = Enum.Font.GothamBold; CloseBtn.ZIndex = 5
+    corner(CloseBtn, 10)
+    makeDraggable(TopBar, WIN)
+
+    local MainContent = Instance.new("Frame", WIN)
+    MainContent.Size = UDim2.new(1, 0, 1, -MINI_H)
+    MainContent.Position = UDim2.new(0, 0, 0, MINI_H)
+    MainContent.BackgroundTransparency = 1; MainContent.BorderSizePixel = 0
+
+    local Sidebar = Instance.new("Frame", MainContent)
+    Sidebar.Size = UDim2.new(0, SIDEBAR_W, 1, 0)
+    Sidebar.BackgroundColor3 = C.sidebar; Sidebar.BorderSizePixel = 0
+    vlist(Sidebar, 4); pad(Sidebar, 10, 10, 6, 6)
+
+    local TabArea = Instance.new("Frame", MainContent)
+    TabArea.Size = UDim2.new(1, -SIDEBAR_W, 1, 0)
+    TabArea.Position = UDim2.new(0, SIDEBAR_W, 0, 0)
+    TabArea.BackgroundTransparency = 1; TabArea.BorderSizePixel = 0
+    TabArea.ClipsDescendants = true
+
+    local tabs = {}
+
+    local function makeNavBtn(icon, label, order)
+        local b = Instance.new("TextButton", Sidebar)
+        b.Size = UDim2.new(1, 0, 0, 54); b.BackgroundColor3 = C.card
+        b.BorderSizePixel = 0; b.Text = ""; b.LayoutOrder = order; corner(b, 14)
+        local ico = Instance.new("TextLabel", b)
+        ico.Size = UDim2.new(1, 0, 0, 26); ico.Position = UDim2.new(0, 0, 0, 6)
+        ico.BackgroundTransparency = 1; ico.Text = icon; ico.TextScaled = true
+        ico.Font = Enum.Font.GothamBold; ico.TextColor3 = C.muted
+        ico.TextXAlignment = Enum.TextXAlignment.Center
+        local lbL = Instance.new("TextLabel", b)
+        lbL.Size = UDim2.new(1, 0, 0, 14); lbL.Position = UDim2.new(0, 0, 1, -18)
+        lbL.BackgroundTransparency = 1; lbL.Text = label; lbL.TextScaled = true
+        lbL.Font = Enum.Font.GothamBold; lbL.TextColor3 = C.muted
+        lbL.TextXAlignment = Enum.TextXAlignment.Center
+        return b, ico, lbL
+    end
+
+    local function makeTabScroll()
+        local s = Instance.new("ScrollingFrame", TabArea)
+        s.Size = UDim2.new(1, 0, 1, 0); s.BackgroundTransparency = 1
+        s.BorderSizePixel = 0; s.ScrollBarThickness = 3
+        s.ScrollBarImageColor3 = C.accent; s.CanvasSize = UDim2.new(0, 0, 0, 0)
+        s.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        s.ScrollingDirection = Enum.ScrollingDirection.Y; s.Visible = false
+        pad(s, 10, 16, 10, 8); vlist(s, 8)
+        return s
+    end
+
+    local function switchTab(name)
+        for n, data in pairs(tabs) do
+            local isActive = (n == name)
+            data.scroll.Visible = isActive
+            tw(data.navBtn, {BackgroundColor3 = isActive and C.accent or C.card}, 0.18)
+            data.navIco.TextColor3 = isActive and Color3.new(1,1,1) or C.muted
+            data.navLbl.TextColor3 = isActive and Color3.new(1,1,1) or C.muted
+        end
+    end
+
+    local function registerTab(name, icon, label, order)
+        local btn, ico, lbL = makeNavBtn(icon, label, order)
+        local scroll = makeTabScroll()
+        tabs[name] = { navBtn = btn, navIco = ico, navLbl = lbL, scroll = scroll }
+        onPress(btn, function() switchTab(name) end)
+        return scroll
+    end
+
+    local farmScroll     = registerTab("farm",     "⚔️",  "Farm",   1)
+    local skillsScroll   = registerTab("skills",   "⚡",  "Skills", 2)
+    local mobsScroll     = registerTab("mobs",     "👾",  "Mobs",   3)
+    local raidScroll     = registerTab("raid",     "🔴",  "Raid",   4)
+    local islandScroll   = registerTab("islands",  "🏝️", "Ilhas",  5)
+    local settingsScroll = registerTab("settings", "⚙️",  "Misc",   6)
+
+    local function sectionLbl(parent, txt, order)
+        local f = Instance.new("Frame", parent)
+        f.Size = UDim2.new(1, 0, 0, 24); f.BackgroundTransparency = 1; f.LayoutOrder = order
+        lbl(f, txt, 24, Color3.fromRGB(100, 150, 255), true)
+        return f
+    end
+    local function cardFrame(parent, order, h)
+        local f = Instance.new("Frame", parent)
+        f.Size = UDim2.new(1, 0, 0, h or 56); f.BackgroundColor3 = C.card
+        f.BorderSizePixel = 0; f.LayoutOrder = order; corner(f, 13); stroke(f, C.border, 1)
+        return f
+    end
+    local function toggleRow(parent, order, icon, txt, cfgKey, accentOn)
+        accentOn = accentOn or C.green
+        local f = cardFrame(parent, order, 56)
+        local ico = Instance.new("TextLabel", f)
+        ico.Size = UDim2.new(0, 42, 1, 0); ico.BackgroundTransparency = 1
+        ico.Text = icon; ico.TextScaled = true; ico.Font = Enum.Font.GothamBold
+        ico.TextXAlignment = Enum.TextXAlignment.Center
+        local nm = Instance.new("TextLabel", f)
+        nm.Size = UDim2.new(1, -118, 1, 0); nm.Position = UDim2.new(0, 44, 0, 0)
+        nm.BackgroundTransparency = 1; nm.Text = txt; nm.TextColor3 = C.text
+        nm.TextScaled = true; nm.Font = Enum.Font.GothamBold; nm.TextXAlignment = Enum.TextXAlignment.Left
+        local on = CONFIG[cfgKey]
+        local pill = Instance.new("Frame", f)
+        pill.Size = UDim2.new(0, 68, 0, 32); pill.Position = UDim2.new(1, -74, 0.5, -16)
+        pill.BackgroundColor3 = on and accentOn or C.red; pill.BorderSizePixel = 0; corner(pill, 16)
+        local ptxt = Instance.new("TextLabel", pill)
+        ptxt.Size = UDim2.new(1, 0, 1, 0); ptxt.BackgroundTransparency = 1
+        ptxt.Text = on and "ON" or "OFF"; ptxt.TextColor3 = Color3.new(1,1,1)
+        ptxt.TextScaled = true; ptxt.Font = Enum.Font.GothamBold
+        ptxt.TextXAlignment = Enum.TextXAlignment.Center
+        local hit = Instance.new("TextButton", f)
+        hit.Size = UDim2.new(1, 0, 1, 0); hit.BackgroundTransparency = 1; hit.Text = ""
+        onPress(hit, function()
+            CONFIG[cfgKey] = not CONFIG[cfgKey]
+            local isOn = CONFIG[cfgKey]
+            tw(pill, {BackgroundColor3 = isOn and accentOn or C.red}, 0.2)
+            ptxt.Text = isOn and "ON" or "OFF"
+        end)
+        return f
+    end
+    local function stepperRow(parent, order, labelTxt, getVal, setVal, delta, minV, maxV, fmt)
+        local f = cardFrame(parent, order, 56)
+        local lbF = Instance.new("TextLabel", f)
+        lbF.Size = UDim2.new(1, -160, 1, 0); lbF.Position = UDim2.new(0, 12, 0, 0)
+        lbF.BackgroundTransparency = 1; lbF.Text = labelTxt; lbF.TextColor3 = C.text
+        lbF.TextScaled = true; lbF.Font = Enum.Font.Gotham; lbF.TextXAlignment = Enum.TextXAlignment.Left
+        local container = Instance.new("Frame", f)
+        container.Size = UDim2.new(0, 148, 0, 40); container.Position = UDim2.new(1, -152, 0.5, -20)
+        container.BackgroundTransparency = 1; hlist(container, 6)
+        local valLbl = Instance.new("TextLabel", container)
+        valLbl.Size = UDim2.new(0, 44, 1, 0); valLbl.LayoutOrder = 2
+        valLbl.BackgroundTransparency = 1; valLbl.Text = fmt(getVal())
+        valLbl.TextColor3 = C.accent; valLbl.TextScaled = true
+        valLbl.Font = Enum.Font.GothamBold; valLbl.TextXAlignment = Enum.TextXAlignment.Center
+        local function makeBtn(txt, d, lo)
+            local b = Instance.new("TextButton", container)
+            b.Size = UDim2.new(0, 48, 0, 40); b.LayoutOrder = lo
+            b.BackgroundColor3 = C.accent; b.BorderSizePixel = 0
+            b.Text = txt; b.TextColor3 = Color3.new(1,1,1)
+            b.TextScaled = true; b.Font = Enum.Font.GothamBold; corner(b, 10)
+            onPress(b, function()
+                local newVal = math.clamp(getVal() + d, minV, maxV)
+                setVal(newVal); valLbl.Text = fmt(newVal)
+            end)
+        end
+        makeBtn("−", -delta, 1); makeBtn("+", delta, 3)
+        return f, valLbl
+    end
+
+    -- =============================================
+    --  ABA FARM
+    -- =============================================
+    local startCard = cardFrame(farmScroll, 1, 60)
+    startCard.BackgroundColor3 = C.accent
+    stroke(startCard, Color3.fromRGB(90, 150, 255), 2)
+    local startBtn = Instance.new("TextButton", startCard)
+    startBtn.Size = UDim2.new(1, 0, 1, 0); startBtn.BackgroundTransparency = 1
+    startBtn.Text = "▶   INICIAR AUTO FARM"; startBtn.TextColor3 = Color3.new(1,1,1)
+    startBtn.TextScaled = true; startBtn.Font = Enum.Font.GothamBold
+
+    local statsF = cardFrame(farmScroll, 2, 62)
+    statsF.BackgroundTransparency = 1; statsF.BorderSizePixel = 0
+    local statsRow = Instance.new("Frame", statsF)
+    statsRow.Size = UDim2.new(1, 0, 1, 0); statsRow.BackgroundTransparency = 1; hlist(statsRow, 8)
+
+    local function statCard(parent, lo, numColor)
+        local f = Instance.new("Frame", parent)
+        f.Size = UDim2.new(0.5, -4, 1, 0); f.LayoutOrder = lo
+        f.BackgroundColor3 = C.card; f.BorderSizePixel = 0; corner(f, 13); stroke(f, C.border, 1)
+        local num = Instance.new("TextLabel", f)
+        num.Size = UDim2.new(1, 0, 0.58, 0); num.Position = UDim2.new(0, 0, 0, 4)
+        num.BackgroundTransparency = 1; num.Text = "0"; num.TextColor3 = numColor or C.green
+        num.TextScaled = true; num.Font = Enum.Font.GothamBold; num.TextXAlignment = Enum.TextXAlignment.Center
+        local sub = Instance.new("TextLabel", f)
+        sub.Size = UDim2.new(1, 0, 0, 14); sub.Position = UDim2.new(0, 0, 1, -18)
+        sub.BackgroundTransparency = 1; sub.TextScaled = true; sub.Font = Enum.Font.Gotham
+        sub.TextColor3 = C.muted; sub.TextXAlignment = Enum.TextXAlignment.Center
+        return f, num, sub
+    end
+    local _, rewardNum, rewardSub = statCard(statsRow, 1, C.green)
+    rewardSub.Text = "Rewards"
+    local _, killNum, killSub = statCard(statsRow, 2, C.accent)
+    killSub.Text = "Kills"
+
+    local infoF = cardFrame(farmScroll, 3, 46)
+    pad(infoF, 0, 0, 12, 12)
+    local mobInfoLbl = lbl(infoF, "👾  Mob: Qualquer um", 46, C.gold, false)
+
+    local statusF = cardFrame(farmScroll, 4, 40)
+    statusF.BackgroundColor3 = Color3.fromRGB(20, 20, 38)
+    pad(statusF, 0, 0, 12, 12)
+    local statusLbl = lbl(statusF, "Aguardando...", 40, C.muted, false)
+
+    sectionLbl(farmScroll, "🎁  REWARDS", 6)
+
+    do
+        local accentOn = C.green
+        local f = cardFrame(farmScroll, 10, 56)
+        local ico = Instance.new("TextLabel", f)
+        ico.Size = UDim2.new(0, 42, 1, 0); ico.BackgroundTransparency = 1
+        ico.Text = "🎁"; ico.TextScaled = true; ico.Font = Enum.Font.GothamBold
+        ico.TextXAlignment = Enum.TextXAlignment.Center
+        local nm = Instance.new("TextLabel", f)
+        nm.Size = UDim2.new(1, -118, 1, 0); nm.Position = UDim2.new(0, 44, 0, 0)
+        nm.BackgroundTransparency = 1; nm.Text = "Auto Collect"; nm.TextColor3 = C.text
+        nm.TextScaled = true; nm.Font = Enum.Font.GothamBold; nm.TextXAlignment = Enum.TextXAlignment.Left
+        local on = CONFIG.AutoCollect
+        local pill = Instance.new("Frame", f)
+        pill.Size = UDim2.new(0, 68, 0, 32); pill.Position = UDim2.new(1, -74, 0.5, -16)
+        pill.BackgroundColor3 = on and accentOn or C.red; pill.BorderSizePixel = 0; corner(pill, 16)
+        local ptxt = Instance.new("TextLabel", pill)
+        ptxt.Size = UDim2.new(1, 0, 1, 0); ptxt.BackgroundTransparency = 1
+        ptxt.Text = on and "ON" or "OFF"; ptxt.TextColor3 = Color3.new(1,1,1)
+        ptxt.TextScaled = true; ptxt.Font = Enum.Font.GothamBold; ptxt.TextXAlignment = Enum.TextXAlignment.Center
+        local hit = Instance.new("TextButton", f)
+        hit.Size = UDim2.new(1, 0, 1, 0); hit.BackgroundTransparency = 1; hit.Text = ""
+        onPress(hit, function()
+            CONFIG.AutoCollect = not CONFIG.AutoCollect
+            local isOn = CONFIG.AutoCollect
+            tw(pill, {BackgroundColor3 = isOn and accentOn or C.red}, 0.2)
+            ptxt.Text = isOn and "ON" or "OFF"
+            if isOn and not collectActive then task.spawn(collectLoop) end
+        end)
+    end
+
+    stepperRow(farmScroll, 11, "📡 Raio de Coleta",
+        function() return CONFIG.CollectRadius end,
+        function(v) CONFIG.CollectRadius = v end,
+        50, 5, 3000,
+        function(v) return v .. "st" end
+    )
+
+    -- =============================================
+    --  ABA SKILLS
+    -- =============================================
+    sectionLbl(skillsScroll, "⚡  HABILIDADES", 1)
+
+    local function skillToggleRow(parent, order, key, keyName, cfgKey)
+        local f = cardFrame(parent, order, 54)
+        local kf = Instance.new("Frame", f)
+        kf.Size = UDim2.new(0, 34, 0, 34); kf.Position = UDim2.new(0, 10, 0.5, -17)
+        kf.BackgroundColor3 = Color3.fromRGB(20, 30, 80); kf.BorderSizePixel = 0
+        corner(kf, 9); stroke(kf, C.accent, 1)
+        local kl = Instance.new("TextLabel", kf)
+        kl.Size = UDim2.new(1, 0, 1, 0); kl.BackgroundTransparency = 1
+        kl.Text = key; kl.TextColor3 = C.accent; kl.TextScaled = true
+        kl.Font = Enum.Font.GothamBold; kl.TextXAlignment = Enum.TextXAlignment.Center
+        local nm = Instance.new("TextLabel", f)
+        nm.Size = UDim2.new(1, -120, 1, 0); nm.Position = UDim2.new(0, 52, 0, 0)
+        nm.BackgroundTransparency = 1; nm.Text = keyName; nm.TextColor3 = C.text
+        nm.TextScaled = true; nm.Font = Enum.Font.GothamBold; nm.TextXAlignment = Enum.TextXAlignment.Left
+        local on = CONFIG[cfgKey]
+        local pill = Instance.new("Frame", f)
+        pill.Size = UDim2.new(0, 68, 0, 32); pill.Position = UDim2.new(1, -74, 0.5, -16)
+        pill.BackgroundColor3 = on and C.green or C.red; pill.BorderSizePixel = 0; corner(pill, 16)
+        local ptxt = Instance.new("TextLabel", pill)
+        ptxt.Size = UDim2.new(1, 0, 1, 0); ptxt.BackgroundTransparency = 1
+        ptxt.Text = on and "ON" or "OFF"; ptxt.TextColor3 = Color3.new(1,1,1)
+        ptxt.TextScaled = true; ptxt.Font = Enum.Font.GothamBold; ptxt.TextXAlignment = Enum.TextXAlignment.Center
+        local hit = Instance.new("TextButton", f)
+        hit.Size = UDim2.new(1, 0, 1, 0); hit.BackgroundTransparency = 1; hit.Text = ""
+        onPress(hit, function()
+            CONFIG[cfgKey] = not CONFIG[cfgKey]
+            local isOn = CONFIG[cfgKey]
+            tw(pill, {BackgroundColor3 = isOn and C.green or C.red}, 0.2)
+            ptxt.Text = isOn and "ON" or "OFF"
+        end)
+    end
+
+    skillToggleRow(skillsScroll, 2, "Z", "Skill Z",            "SkillZ")
+    skillToggleRow(skillsScroll, 3, "X", "Skill X",            "SkillX")
+    skillToggleRow(skillsScroll, 4, "C", "Skill C",            "SkillC")
+    skillToggleRow(skillsScroll, 5, "V", "Skill V",            "SkillV")
+    skillToggleRow(skillsScroll, 6, "R", "Skill R (Ultimate)", "SkillR")
+
+    sectionLbl(skillsScroll, "⏱️  COOLDOWNS", 10)
+    local cdKeys = {
+        { key = "Z", cfgKey = "SkillZDelay", min = 1, max = 30 },
+        { key = "X", cfgKey = "SkillXDelay", min = 1, max = 30 },
+        { key = "C", cfgKey = "SkillCDelay", min = 1, max = 30 },
+        { key = "V", cfgKey = "SkillVDelay", min = 1, max = 60 },
+        { key = "R", cfgKey = "SkillRDelay", min = 1, max = 60 },
+    }
+    for i, cd in ipairs(cdKeys) do
+        stepperRow(skillsScroll, 10 + i,
+            "Skill " .. cd.key .. " delay",
+            function() return CONFIG[cd.cfgKey] end,
+            function(v) CONFIG[cd.cfgKey] = v end,
+            1, cd.min, cd.max,
+            function(v) return v .. "s" end
+        )
+    end
+
+    -- =============================================
+    --  ABA MOBS
+    -- =============================================
+    sectionLbl(mobsScroll, "👾  SELECIONAR MOB", 1)
+
+    local refreshCard = cardFrame(mobsScroll, 2, 48)
+    refreshCard.BackgroundColor3 = Color3.fromRGB(20, 50, 20)
+    stroke(refreshCard, C.green, 1)
+    local refreshBtn = Instance.new("TextButton", refreshCard)
+    refreshBtn.Size = UDim2.new(1, 0, 1, 0); refreshBtn.BackgroundTransparency = 1
+    refreshBtn.Text = "🔄  Atualizar Lista de Mobs"
+    refreshBtn.TextColor3 = C.green; refreshBtn.TextScaled = true
+    refreshBtn.Font = Enum.Font.GothamBold
+
+    local mobSubScroll = Instance.new("ScrollingFrame", mobsScroll)
+    mobSubScroll.Size = UDim2.new(1, 0, 0, 320)
+    mobSubScroll.BackgroundColor3 = C.panel; mobSubScroll.BorderSizePixel = 0
+    mobSubScroll.ScrollBarThickness = 3; mobSubScroll.ScrollBarImageColor3 = C.accent
+    mobSubScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    mobSubScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    mobSubScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+    mobSubScroll.LayoutOrder = 3; corner(mobSubScroll, 13); stroke(mobSubScroll, C.border, 1)
+    pad(mobSubScroll, 6, 6, 6, 6); vlist(mobSubScroll, 5)
+
+    local selMobBtn = nil
+
+    local function buildMobList()
+        for _, child in ipairs(mobSubScroll:GetChildren()) do
+            if child:IsA("TextButton") or child:IsA("TextLabel") then child:Destroy() end
+        end
+        selMobBtn = nil
+
+        local function mobBtn(order, icon, name, mobName, isBoss)
+            local b = Instance.new("TextButton", mobSubScroll)
+            b.Size = UDim2.new(1, 0, 0, 50)
+            b.BackgroundColor3 = (mobName == nil) and C.accent or C.card
+            b.BorderSizePixel = 0
+            b.Text = icon .. "  " .. name
+            b.TextColor3 = isBoss and C.gold or C.text
+            b.TextScaled = true; b.Font = Enum.Font.GothamBold
+            b.LayoutOrder = order; corner(b, 10)
+            if mobName ~= nil then
+                stroke(b, isBoss and Color3.fromRGB(70, 50, 10) or C.border, 1)
+            end
+            if mobName == nil then selMobBtn = b end
+            onPress(b, function()
+                if selMobBtn then tw(selMobBtn, {BackgroundColor3 = C.card}, 0.2) end
+                tw(b, {BackgroundColor3 = C.accent}, 0.2)
+                selMobBtn = b
+                CONFIG.SelectedMob = mobName
+                mobInfoLbl.Text = "👾  Mob: " .. (mobName or "Qualquer um")
+            end)
+            return b
+        end
+
+        mobBtn(0, "🌐", "Qualquer um", nil, false)
+
+        local mobList = scanMobList()
+
+        local hasBoss = false
+        for _, m in ipairs(mobList) do if m.boss then hasBoss = true; break end end
+        if hasBoss then
+            local bossHdr = Instance.new("TextLabel", mobSubScroll)
+            bossHdr.Size = UDim2.new(1, 0, 0, 24); bossHdr.BackgroundTransparency = 1
+            bossHdr.Text = "  👑 BOSSES"; bossHdr.TextColor3 = C.gold
+            bossHdr.TextScaled = true; bossHdr.Font = Enum.Font.GothamBold
+            bossHdr.TextXAlignment = Enum.TextXAlignment.Left; bossHdr.LayoutOrder = 1
+        end
+
+        local o = 2
+        for _, m in ipairs(mobList) do
+            if m.boss then mobBtn(o, "👑", m.name, m.name, true); o += 1 end
+        end
+
+        local hasMob = false
+        for _, m in ipairs(mobList) do if not m.boss then hasMob = true; break end end
+        if hasMob then
+            local mobHdr = Instance.new("TextLabel", mobSubScroll)
+            mobHdr.Size = UDim2.new(1, 0, 0, 24); mobHdr.BackgroundTransparency = 1
+            mobHdr.Text = "  🔹 MOBS NORMAIS"; mobHdr.TextColor3 = Color3.fromRGB(100, 180, 255)
+            mobHdr.TextScaled = true; mobHdr.Font = Enum.Font.GothamBold
+            mobHdr.TextXAlignment = Enum.TextXAlignment.Left; mobHdr.LayoutOrder = o; o += 1
+        end
+
+        for _, m in ipairs(mobList) do
+            if not m.boss then mobBtn(o, "🔹", m.name, m.name, false); o += 1 end
+        end
+
+        if #mobList == 0 then
+            local empty = Instance.new("TextLabel", mobSubScroll)
+            empty.Size = UDim2.new(1, 0, 0, 40); empty.BackgroundTransparency = 1
+            empty.Text = "⚠️  Nenhum mob detectado\n(entre em uma área com inimigos)"
+            empty.TextColor3 = C.muted; empty.TextScaled = true
+            empty.Font = Enum.Font.Gotham; empty.TextXAlignment = Enum.TextXAlignment.Center
+            empty.LayoutOrder = 2
+        end
+
+        if CONFIG.SelectedMob then
+            local still = false
+            for _, m in ipairs(mobList) do
+                if m.name == CONFIG.SelectedMob then still = true; break end
+            end
+            if not still then
+                CONFIG.SelectedMob = nil
+                mobInfoLbl.Text = "👾  Mob: Qualquer um"
+            end
+        end
+    end
+
+    buildMobList()
+
+    onPress(refreshBtn, function()
+        refreshBtn.Text = "⏳  Atualizando..."
+        task.wait(0.3)
+        buildMobList()
+        refreshBtn.Text = "🔄  Atualizar Lista de Mobs"
+    end)
+
+    -- =============================================
+    --  ABA RAID 🔴
+    -- =============================================
+    sectionLbl(raidScroll, "🔴  RAID - MODO", 1)
+
+    -- Status do Raid
+    local raidStatusCard = cardFrame(raidScroll, 2, 44)
+    raidStatusCard.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+    stroke(raidStatusCard, C.purple, 1)
+    pad(raidStatusCard, 0, 0, 12, 12)
+    local raidStatusLbl = lbl(raidStatusCard, "⏳ " .. raidStatusText, 44, C.purple, true, Enum.TextXAlignment.Center)
+
+    -- Seletor de modo (3 botões lado a lado)
+    local modeSelectorF = Instance.new("Frame", raidScroll)
+    modeSelectorF.Size = UDim2.new(1, 0, 0, 56)
+    modeSelectorF.BackgroundTransparency = 1
+    modeSelectorF.LayoutOrder = 3
+    hlist(modeSelectorF, 6)
+
+    local modeButtons = {}
+    local modeColors = {
+        Common    = Color3.fromRGB(60, 120, 200),
+        Hard      = Color3.fromRGB(180, 120, 20),
+        Nightmare = Color3.fromRGB(180, 30, 30),
+    }
+    local modeEmojis = {
+        Common    = "🔵",
+        Hard      = "🟠",
+        Nightmare = "🔴",
+    }
+
+    local function updateModeButtons(active)
+        for mode, btn in pairs(modeButtons) do
+            local isActive = (mode == active)
+            tw(btn, {BackgroundColor3 = isActive and modeColors[mode] or C.card}, 0.2)
+        end
+        selectedRaidMode = active
+    end
+
+    for _, mode in ipairs({"Common", "Hard", "Nightmare"}) do
+        local b = Instance.new("TextButton", modeSelectorF)
+        b.Size = UDim2.new(0.33, -4, 1, 0)
+        b.BackgroundColor3 = (mode == selectedRaidMode) and modeColors[mode] or C.card
+        b.BorderSizePixel = 0
+        b.Text = modeEmojis[mode] .. "\n" .. mode
+        b.TextColor3 = Color3.new(1, 1, 1)
+        b.TextScaled = true
+        b.Font = Enum.Font.GothamBold
+        corner(b, 12)
+        stroke(b, modeColors[mode], 1.5)
+        modeButtons[mode] = b
+        onPress(b, function()
+            updateModeButtons(mode)
+            -- Clica no botão real do jogo
+            selectRaidMode(mode)
+            raidStatusLbl.Text = "✅ Modo: " .. mode
+        end)
+    end
+
+    -- Botão Teleportar para Raid
+    local tpRaidCard = cardFrame(raidScroll, 4, 54)
+    tpRaidCard.BackgroundColor3 = Color3.fromRGB(15, 15, 35)
+    stroke(tpRaidCard, C.tpBlue, 1.5)
+    local tpRaidBtn = Instance.new("TextButton", tpRaidCard)
+    tpRaidBtn.Size = UDim2.new(1, 0, 1, 0)
+    tpRaidBtn.BackgroundTransparency = 1
+    tpRaidBtn.Text = "🚀  Teleportar para o Raid"
+    tpRaidBtn.TextColor3 = Color3.fromRGB(100, 180, 255)
+    tpRaidBtn.TextScaled = true
+    tpRaidBtn.Font = Enum.Font.GothamBold
+    onPress(tpRaidBtn, function()
+        if not refreshChar() or not Root then return end
+        Root.CFrame = CFrame.new(RAID_CONFIG.TeleportPos + Vector3.new(0, 4, 0))
+        raidStatusLbl.Text = "✅ Teleportado!"
+    end)
+
+    -- Separador
+    sectionLbl(raidScroll, "▶  INICIAR RAID", 5)
+
+    -- Botão Start Raid (grande, destaque)
+    local startRaidCard = cardFrame(raidScroll, 6, 68)
+    startRaidCard.BackgroundColor3 = Color3.fromRGB(140, 20, 20)
+    stroke(startRaidCard, Color3.fromRGB(220, 50, 50), 2)
+    local startRaidBtn = Instance.new("TextButton", startRaidCard)
+    startRaidBtn.Size = UDim2.new(1, 0, 1, 0)
+    startRaidBtn.BackgroundTransparency = 1
+    startRaidBtn.Text = "⚔️  START RAID"
+    startRaidBtn.TextColor3 = Color3.new(1, 1, 1)
+    startRaidBtn.TextScaled = true
+    startRaidBtn.Font = Enum.Font.GothamBold
+    onPress(startRaidBtn, function()
+        startRaidBtn.Text = "⏳ Iniciando..."
+        raidStatusLbl.Text = "⏳ Executando..."
+        task.spawn(function()
+            autoStartRaid(selectedRaidMode)
+            raidStatusLbl.Text = raidStatusText
+            startRaidBtn.Text = "⚔️  START RAID"
+        end)
+    end)
+
+    -- Botão Auto-Start ao entrar
+    sectionLbl(raidScroll, "⚙️  CONFIGURAÇÕES", 8)
+
+    do
+        local f = cardFrame(raidScroll, 9, 56)
+        local ico = Instance.new("TextLabel", f)
+        ico.Size = UDim2.new(0, 42, 1, 0); ico.BackgroundTransparency = 1
+        ico.Text = "🔄"; ico.TextScaled = true; ico.Font = Enum.Font.GothamBold
+        ico.TextXAlignment = Enum.TextXAlignment.Center
+        local nm = Instance.new("TextLabel", f)
+        nm.Size = UDim2.new(1, -118, 1, 0); nm.Position = UDim2.new(0, 44, 0, 0)
+        nm.BackgroundTransparency = 1; nm.Text = "Auto-Start Raid"; nm.TextColor3 = C.text
+        nm.TextScaled = true; nm.Font = Enum.Font.GothamBold; nm.TextXAlignment = Enum.TextXAlignment.Left
+        local on = RAID_CONFIG.AutoStartRaid
+        local pill = Instance.new("Frame", f)
+        pill.Size = UDim2.new(0, 68, 0, 32); pill.Position = UDim2.new(1, -74, 0.5, -16)
+        pill.BackgroundColor3 = on and C.green or C.red; pill.BorderSizePixel = 0; corner(pill, 16)
+        local ptxt = Instance.new("TextLabel", pill)
+        ptxt.Size = UDim2.new(1, 0, 1, 0); ptxt.BackgroundTransparency = 1
+        ptxt.Text = on and "ON" or "OFF"; ptxt.TextColor3 = Color3.new(1,1,1)
+        ptxt.TextScaled = true; ptxt.Font = Enum.Font.GothamBold; ptxt.TextXAlignment = Enum.TextXAlignment.Center
+        local hit = Instance.new("TextButton", f)
+        hit.Size = UDim2.new(1, 0, 1, 0); hit.BackgroundTransparency = 1; hit.Text = ""
+        onPress(hit, function()
+            RAID_CONFIG.AutoStartRaid = not RAID_CONFIG.AutoStartRaid
+            local isOn = RAID_CONFIG.AutoStartRaid
+            tw(pill, {BackgroundColor3 = isOn and C.green or C.red}, 0.2)
+            ptxt.Text = isOn and "ON" or "OFF"
+        end)
+    end
+
+    -- Delay config
+    stepperRow(raidScroll, 10, "⏱️ Delay após TP",
+        function() return math.floor(RAID_CONFIG.DelayAfterTP * 10) / 10 end,
+        function(v) RAID_CONFIG.DelayAfterTP = v end,
+        1, 1, 10,
+        function(v) return v .. "s" end
+    )
+
+    -- Dica
+    local raidTip = cardFrame(raidScroll, 20, 54)
+    raidTip.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+    stroke(raidTip, C.muted, 1)
+    local raidTipLbl = Instance.new("TextLabel", raidTip)
+    raidTipLbl.Size = UDim2.new(1, -16, 1, 0); raidTipLbl.Position = UDim2.new(0, 8, 0, 0)
+    raidTipLbl.BackgroundTransparency = 1
+    raidTipLbl.Text = "💡 Auto-Start: TP → Nightmare → Start automático"
+    raidTipLbl.TextColor3 = C.muted; raidTipLbl.TextScaled = true
+    raidTipLbl.Font = Enum.Font.Gotham; raidTipLbl.TextXAlignment = Enum.TextXAlignment.Center
+    raidTipLbl.TextWrapped = true
+
+    -- Atualiza label de status do raid em tempo real
+    task.spawn(function()
+        while SG.Parent do
+            task.wait(0.5)
+            if raidStatusText ~= "" then
+                raidStatusLbl.Text = raidStatusText
+            end
+        end
+    end)
+
+    -- =============================================
+    --  ABA ILHAS / TELEPORTE
+    -- =============================================
+    sectionLbl(islandScroll, "🗺️  SPAWNS PRINCIPAIS", 1)
+
+    local tpFeedback = Instance.new("TextLabel")
+    tpFeedback.Size = UDim2.new(1, 0, 0, 30)
+    tpFeedback.BackgroundTransparency = 1
+    tpFeedback.Text = ""
+    tpFeedback.TextColor3 = C.green
+    tpFeedback.TextScaled = true
+    tpFeedback.Font = Enum.Font.GothamBold
+    tpFeedback.TextXAlignment = Enum.TextXAlignment.Center
+    tpFeedback.LayoutOrder = 0
+    tpFeedback.Parent = islandScroll
+
+    local feedbackThread = nil
+    local function showFeedback(msg, col)
+        tpFeedback.Text = msg
+        tpFeedback.TextColor3 = col or C.green
+        if feedbackThread then task.cancel(feedbackThread) end
+        feedbackThread = task.delay(2.5, function() tpFeedback.Text = "" end)
+    end
+
+    local function doTeleport(part, label)
+        if not refreshChar() or not Root then
+            showFeedback("⚠️ Sem personagem!", C.red); return
+        end
+        if not part then
+            showFeedback("❌ Não encontrado: " .. label, C.red); return
+        end
+        local prevFarm = farmActive
+        farmActive = false
+        task.wait(0.05)
+        Root.CFrame = CFrame.new(part.Position + Vector3.new(0, 5, 0))
+        task.wait(0.3)
+        if prevFarm then farmActive = true; task.spawn(farmLoop) end
+        showFeedback("✅ Teleportado: " .. label, C.green)
+    end
+
+    local function tpBtn(parent, order, icon, label, getFn)
+        local f = Instance.new("Frame", parent)
+        f.Size = UDim2.new(1, 0, 0, 52)
+        f.BackgroundColor3 = Color3.fromRGB(15, 20, 40)
+        f.BorderSizePixel = 0; f.LayoutOrder = order
+        corner(f, 12); stroke(f, C.tpBlue, 1.5)
+        local icoLbl = Instance.new("TextLabel", f)
+        icoLbl.Size = UDim2.new(0, 36, 1, 0); icoLbl.Position = UDim2.new(0, 8, 0, 0)
+        icoLbl.BackgroundTransparency = 1; icoLbl.Text = icon
+        icoLbl.TextScaled = true; icoLbl.Font = Enum.Font.GothamBold
+        icoLbl.TextXAlignment = Enum.TextXAlignment.Center
+        local nameLbl = Instance.new("TextLabel", f)
+        nameLbl.Size = UDim2.new(1, -120, 1, 0); nameLbl.Position = UDim2.new(0, 48, 0, 0)
+        nameLbl.BackgroundTransparency = 1; nameLbl.Text = label
+        nameLbl.TextColor3 = Color3.new(1, 1, 1); nameLbl.TextScaled = true
+        nameLbl.Font = Enum.Font.GothamBold; nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+        local tpPill = Instance.new("Frame", f)
+        tpPill.Size = UDim2.new(0, 60, 0, 32); tpPill.Position = UDim2.new(1, -66, 0.5, -16)
+        tpPill.BackgroundColor3 = C.tpBlue; tpPill.BorderSizePixel = 0; corner(tpPill, 14)
+        local tpTxt = Instance.new("TextLabel", tpPill)
+        tpTxt.Size = UDim2.new(1, 0, 1, 0); tpTxt.BackgroundTransparency = 1
+        tpTxt.Text = "🚀 IR"; tpTxt.TextColor3 = Color3.new(1, 1, 1)
+        tpTxt.TextScaled = true; tpTxt.Font = Enum.Font.GothamBold
+        tpTxt.TextXAlignment = Enum.TextXAlignment.Center
+        local hit = Instance.new("TextButton", f)
+        hit.Size = UDim2.new(1, 0, 1, 0); hit.BackgroundTransparency = 1; hit.Text = ""
+        onPress(hit, function()
+            tpTxt.Text = "⏳"
+            tw(tpPill, {BackgroundColor3 = C.accent}, 0.1)
+            local part = getFn()
+            doTeleport(part, label)
+            task.wait(0.4)
+            tpTxt.Text = "🚀 IR"
+            tw(tpPill, {BackgroundColor3 = C.tpBlue}, 0.2)
+        end)
+        return f
+    end
+
+    local spawnIcons = { "🌍", "⚔️", "❄️", "🌑", "🔥", "🌘", "💀", "🏔️" }
+    for i, sp in ipairs(SPAWN_LIST) do
+        tpBtn(islandScroll, 10 + i, spawnIcons[i] or "🗺️", sp.label, function()
+            return getSpawnPart(sp.name)
+        end)
+    end
+
+    sectionLbl(islandScroll, "🏝️  ILHAS", 20)
+
+    local islandIcons = { "🌱", "🏯", "👹", "🌋", "🌨️", "🏜️", "⛏️", "👻" }
+    for i, isl in ipairs(ISLAND_LIST) do
+        tpBtn(islandScroll, 30 + i, islandIcons[i] or "🏝️", isl.label, function()
+            return getIslandPart(isl.name)
+        end)
+    end
+
+    local tipCard = cardFrame(islandScroll, 50, 44)
+    tipCard.BackgroundColor3 = Color3.fromRGB(10, 20, 10)
+    stroke(tipCard, C.muted, 1)
+    local tipLbl = Instance.new("TextLabel", tipCard)
+    tipLbl.Size = UDim2.new(1, -16, 1, 0); tipLbl.Position = UDim2.new(0, 8, 0, 0)
+    tipLbl.BackgroundTransparency = 1
+    tipLbl.Text = "💡 Farm pausa durante TP e retoma depois"
+    tipLbl.TextColor3 = C.muted; tipLbl.TextScaled = true
+    tipLbl.Font = Enum.Font.Gotham; tipLbl.TextXAlignment = Enum.TextXAlignment.Center
+    tipLbl.TextWrapped = true
+
+    -- =============================================
+    --  ABA MISC
+    -- =============================================
+    sectionLbl(settingsScroll, "🛡️  PROTEÇÃO", 1)
+    toggleRow(settingsScroll, 2, "🛡️", "Anti-AFK", "AntiAFK", Color3.fromRGB(255, 160, 30))
+    stepperRow(settingsScroll, 3, "⏱️ Intervalo Anti-AFK",
+        function() return CONFIG.AntiAFKDelay end,
+        function(v) CONFIG.AntiAFKDelay = v end,
+        5, 10, 120,
+        function(v) return v .. "s" end
+    )
+    sectionLbl(settingsScroll, "⚡  ATAQUE", 10)
+    stepperRow(settingsScroll, 11, "🎯 Delay de Ataque",
+        function() return math.floor(CONFIG.AttackDelay * 100) end,
+        function(v) CONFIG.AttackDelay = v / 100 end,
+        1, 1, 50,
+        function(v) return (v / 100) .. "s" end
+    )
+
+    sectionLbl(settingsScroll, "📺  CANAL", 15)
+
+    local YT_LINK = "https://www.youtube.com/@OTIMOS-l3n"
+
+    local ytCard = cardFrame(settingsScroll, 16, 56)
+    ytCard.BackgroundColor3 = Color3.fromRGB(22, 10, 10)
+    stroke(ytCard, C.youtube, 1.5)
+    local ytIco = Instance.new("TextLabel", ytCard)
+    ytIco.Size = UDim2.new(0, 42, 1, 0); ytIco.BackgroundTransparency = 1
+    ytIco.Text = "▶"; ytIco.TextColor3 = C.youtube; ytIco.TextScaled = true
+    ytIco.Font = Enum.Font.GothamBold; ytIco.TextXAlignment = Enum.TextXAlignment.Center
+    local ytLbl = Instance.new("TextLabel", ytCard)
+    ytLbl.Size = UDim2.new(1, -120, 1, 0); ytLbl.Position = UDim2.new(0, 44, 0, 0)
+    ytLbl.BackgroundTransparency = 1; ytLbl.Text = "Canal OTIMOS"
+    ytLbl.TextColor3 = Color3.fromRGB(255, 220, 220); ytLbl.TextScaled = true
+    ytLbl.Font = Enum.Font.GothamBold; ytLbl.TextXAlignment = Enum.TextXAlignment.Left
+    local ytPill = Instance.new("Frame", ytCard)
+    ytPill.Size = UDim2.new(0, 68, 0, 32); ytPill.Position = UDim2.new(1, -74, 0.5, -16)
+    ytPill.BackgroundColor3 = C.youtube; ytPill.BorderSizePixel = 0; corner(ytPill, 16)
+    local ytPillTxt = Instance.new("TextLabel", ytPill)
+    ytPillTxt.Size = UDim2.new(1, 0, 1, 0); ytPillTxt.BackgroundTransparency = 1
+    ytPillTxt.Text = "COPIAR"; ytPillTxt.TextColor3 = Color3.new(1, 1, 1)
+    ytPillTxt.TextScaled = true; ytPillTxt.Font = Enum.Font.GothamBold
+    ytPillTxt.TextXAlignment = Enum.TextXAlignment.Center
+    local ytHit = Instance.new("TextButton", ytCard)
+    ytHit.Size = UDim2.new(1, 0, 1, 0); ytHit.BackgroundTransparency = 1; ytHit.Text = ""
+    onPress(ytHit, function()
+        pcall(function() setclipboard(YT_LINK) end)
+        ytPillTxt.Text = "✓ OK!"
+        tw(ytPill, {BackgroundColor3 = C.green}, 0.15)
+        task.wait(1.5)
+        ytPillTxt.Text = "COPIAR"
+        tw(ytPill, {BackgroundColor3 = C.youtube}, 0.15)
+    end)
+
+    local verCard = cardFrame(settingsScroll, 20, 56)
+    local verLbl = Instance.new("TextLabel", verCard)
+    verLbl.Size = UDim2.new(1, 0, 1, 0); verLbl.BackgroundTransparency = 1
+    verLbl.Text = "CANAL YT OTIMOS /AutoFarm  v8.0  •  Raid Auto-Start ✓"
+    verLbl.TextColor3 = C.muted; verLbl.TextScaled = true
+    verLbl.Font = Enum.Font.Gotham; verLbl.TextXAlignment = Enum.TextXAlignment.Center
+
+    -- =============================================
+    --  START / STOP FARM
+    -- =============================================
+    local running = false
+
+    local function updateFarmUI()
+        if running then
+            tw(startCard, {BackgroundColor3 = C.red}, 0.2)
+            startBtn.Text = "⏹   PARAR AUTO FARM"
+            tw(Pill, {BackgroundColor3 = C.green}, 0.2)
+            PillTxt.Text = "● ON"
+        else
+            tw(startCard, {BackgroundColor3 = C.accent}, 0.2)
+            startBtn.Text = "▶   INICIAR AUTO FARM"
+            tw(Pill, {BackgroundColor3 = C.red}, 0.2)
+            PillTxt.Text = "● OFF"
+        end
+    end
+
+    onPress(startBtn, function()
+        running = not running
+        farmActive = running
+        if running then
+            task.spawn(farmLoop)
+        else
+            currentTarget = nil
+        end
+        updateFarmUI()
+    end)
+
+    onPress(CloseBtn, function()
+        farmActive = false; running = false; SG:Destroy()
+    end)
+
+    local minimized = false
+    onPress(MinBtn, function()
+        minimized = not minimized
+        if minimized then
+            tw(WIN, {Size = UDim2.new(0, WIN_W, 0, MINI_H)}, 0.25)
+            MainContent.Visible = false; MinBtn.Text = "□"
+        else
+            tw(WIN, {Size = UDim2.new(0, WIN_W, 0, WIN_H)}, 0.25)
+            MainContent.Visible = true; MinBtn.Text = "—"
+        end
+    end)
+
+    task.spawn(function()
+        while SG.Parent do
+            task.wait(0.4)
+            rewardNum.Text = tostring(rewardCount)
+            killNum.Text   = tostring(killCount)
+            statusLbl.Text = farmStatusText
+        end
+    end)
+
+    switchTab("farm")
+
+    -- ==========================================
+    --  HOTKEY F = ATIVAR/DESATIVAR FARM
+    -- ==========================================
+    UIS.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.F then
+            running = not running
+            farmActive = running
+            updateFarmUI()
+            if running then
+                task.spawn(farmLoop)
+                print("✅ AUTO FARM ATIVADO (Tecla F)")
+            else
+                currentTarget = nil
+                print("❌ AUTO FARM DESATIVADO (Tecla F)")
+            end
+        end
+    end)
+
+    return SG
+end
+
+local SG = createGUI()
+
+print("✅ OTIMOS AutoFarm v8.0 — Raid Auto-Start integrado")
+print("💡 Pressione F para ativar/desativar o Auto Farm")
+
+-- ==========================================
+--  AUTO-START RAID AO INICIAR O SCRIPT
+-- ==========================================
+if RAID_CONFIG.AutoStartRaid then
+    task.spawn(function()
+        task.wait(2) -- Espera o jogo carregar
+        print("🔴 [Raid] Iniciando sequência automática...")
+        print("🔴 [Raid] Modo: " .. RAID_CONFIG.DefaultMode)
+        autoStartRaid(RAID_CONFIG.DefaultMode)
+        print("🔴 [Raid] Sequência concluída!")
+    end)
+end
+
+-- ==========================================
+--  AGUARDA MOB PARA INICIAR FARM
+-- ==========================================
+print("🔍 Aguardando encontrar: " .. CONFIG.SelectedMob .. "...")
+
+task.spawn(function()
+    local foundTarget = false
+    while not foundTarget and CONFIG.SelectedMob do
+        task.wait(0.5)
+        if refreshChar() then
+            local target = findTarget(false)
+            if target then
+                foundTarget = true
+                print("✅ MOB ENCONTRADO! Iniciando Auto Farm...")
+                print("🎯 Alvo: " .. CONFIG.SelectedMob)
+                farmActive = true
+                task.spawn(farmLoop)
+                break
+            end
+        end
+    end
+end)
+
+print("💡 O Auto Farm iniciará automaticamente quando o mob aparecer")
+
+--[[
+    ╔══════════════════════════════════════════════╗
+    ║         OTIMOS - AUTO FARM v8.0              ║
+    ║   Detecção Automática de Mobs/Bosses         ║
+    ║   UI em Abas + Mobile + Minimizar            ║
+    ║   + Teleporte de Ilhas                       ║
+    ║   + Fallback de Respawn (não fica parado)    ║
+    ║   + Aba RAID com Auto-Start Nightmare        ║
+    ╚══════════════════════════════════════════════╝
+]]
+
+local KNOWN_BOSSES = {
+    ["Niflor"]       = true,
+    ["Surtrik"]      = true,
+    ["Thorvak"]      = true,
+    ["Hraegon"]      = true,
+    ["Gelaros"]      = true,
+    ["Ragaros"]      = true,
+    ["Nivaron"]      = true,
+    ["Struggler"]    = true,
+    ["Magador"]      = true,
+    ["Velik"]        = true,
+    ["Moraros"]      = true,
+    ["Nameless Hero"]= true,
+}
+
+local BOSS_HP_THRESHOLD = 5000
+
+-- ==========================================
+--   ILHAS E SPAWNS
+-- ==========================================
+local SPAWN_LIST = {
+    { label = "ORIGIN ISLAND",  name = "ORIGIN ISLAND" },
+    { label = "MIDGARD",        name = "MIDGARD"       },
+    { label = "JOTUNHEIM",      name = "JOTUNHEIM"     },
+    { label = "NIFLHEIM",       name = "NIFLHEIM"      },
+    { label = "MUSPELHEIM",     name = "MUSPELHEIM"    },
+    { label = "ECLIPSE",        name = "ECLIPSE"       },
+    { label = "HELHEIM",        name = "HELHEIM"       },
+    { label = "NIDAVELLIR",     name = "NIDAVELLIR"    },
+}
+
+local ISLAND_LIST = {}
+
+local function getSpawnPart(spawnName)
+    local spawnContainer = workspace:FindFirstChild("World")
+        and workspace.World:FindFirstChild("Spawn")
+        and workspace.World.Spawn:FindFirstChild("Spawn")
+    if spawnContainer then
+        local part = spawnContainer:FindFirstChild(spawnName)
+        if part and part:IsA("BasePart") then return part end
+        if part then
+            local bp = part:FindFirstChildOfClass("BasePart")
+            if bp then return bp end
+            if part:IsA("SpawnLocation") then return part end
+        end
+    end
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj.Name == spawnName and (obj:IsA("BasePart") or obj:IsA("SpawnLocation")) then
+            return obj
+        end
+    end
+    return nil
+end
+
+local function getIslandPart(islandName)
+    local islandContainer = workspace:FindFirstChild("World")
+        and workspace.World:FindFirstChild("Island")
+        and workspace.World.Island:FindFirstChild("Island")
+    if islandContainer then
+        local folder = islandContainer:FindFirstChild(islandName)
+        if folder then
+            local bp = folder:FindFirstChildOfClass("BasePart")
+            if bp then return bp end
+            for _, d in ipairs(folder:GetDescendants()) do
+                if d:IsA("BasePart") then return d end
+            end
+        end
+    end
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj.Name == islandName and obj:IsA("BasePart") then
+            return obj
+        end
+    end
+    return nil
+end
+
+-- ==========================================
+--         CONFIGURAÇÕES
+-- ==========================================
+local CONFIG = {
     SelectedMob      = "Valstrax[Nightmare]",
     AttackDelay      = 0.05,
     SkillZ           = true,
@@ -1531,19 +3083,3 @@ end)
 print("💡 O Auto Farm iniciará automaticamente quando o mob aparecer")
 
 
-local function clickDifficulty(name)
-    for _, obj in ipairs(PlayerGui:GetDescendants()) do
-        if obj.Name == name and obj:IsA("Frame") and obj.Visible then
-            local pos = obj.AbsolutePosition
-            local size = obj.AbsoluteSize
-            local cx = math.floor(pos.X + size.X / 2)
-            local cy = math.floor(pos.Y + size.Y / 2)
-            -- cx e cy são calculados dinamicamente para qualquer tela
-            VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
-            task.wait(0.1)
-            VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
-            return true
-        end
-    end
-    return false
-end
