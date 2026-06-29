@@ -112,7 +112,7 @@ local CONFIG = {
 --   CONFIGURAÇÕES DO RAID
 -- ==========================================
 local RAID_CONFIG = {
-    AutoStartRaid    = true,           -- Inicia raid automaticamente ao executar o script
+    AutoStartRaid    = false,           -- Inicia raid automaticamente ao executar o script -- desativado
     DefaultMode      = "Nightmare",    -- Modo padrão
     TeleportPos      = Vector3.new(510.0012512207031, 198.90391540527344, -3219.46435546875),
     
@@ -292,122 +292,34 @@ local function pressKey(keyCode)
 end
 
 -- ==========================================
---   FUNÇÕES DO RAID (busca por GUI)
+--   FUNÇÕES DO RAID (clique por posição)
 -- ==========================================
+local function clickScreenPos(pos)
+    pcall(function()
+        VIM:SendMouseMoveEvent(pos.X, pos.Y, game)
+        task.wait(0.05)
+        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true,  game, 1)
+        task.wait(0.05)
+        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
+    end)
+end
+
 local raidStatusText = "Aguardando..."
 local selectedRaidMode = RAID_CONFIG.DefaultMode
 
--- Encontra o botão de dificuldade pelo nome do Frame filho
-local function findRaidDiffButton(modeName)
-    local PlayerGui = LP.PlayerGui
-    for _, obj in ipairs(PlayerGui:GetDescendants()) do
-        -- Estrutura: ContentButten > Button > [modeName]
-        if obj.Name == modeName and obj:IsA("Frame") then
-            local parent = obj.Parent -- Frame "Button"
-            if parent and parent.Name == "Button" then
-                local grandParent = parent.Parent -- Frame "ContentButten"
-                if grandParent and grandParent.Name == "ContentButten" then
-                    return grandParent -- clica no ContentButten (é o botão real)
-                end
-            end
-        end
-    end
-    return nil
-end
-
--- Encontra o botão Start do Raid
-local function findRaidStartButton()
-    local PlayerGui = LP.PlayerGui
-    for _, obj in ipairs(PlayerGui:GetDescendants()) do
-        if (obj:IsA("TextButton") or obj:IsA("ImageButton")) and obj.Visible then
-            local t = obj.Text or ""
-            if t:lower():find("start") then
-                return obj
-            end
-        end
-    end
-    -- Fallback: busca por nome
-    for _, obj in ipairs(PlayerGui:GetDescendants()) do
-        if obj.Name == "Start" or obj.Name == "StartBtn" or obj.Name == "StartButton" then
-            return obj
-        end
-    end
-    return nil
-end
-
--- Simula clique num objeto GUI
-local function fireGuiClick(obj)
-    if not obj then return false end
-    -- Tenta MouseButton1Click primeiro
-    local ok = pcall(function()
-        obj.MouseButton1Click:Fire()
-    end)
-    if not ok then
-        -- Fallback: clique por posição central do objeto
-        pcall(function()
-            local pos = obj.AbsolutePosition
-            local size = obj.AbsoluteSize
-            local cx = pos.X + size.X / 2
-            local cy = pos.Y + size.Y / 2
-            VIM:SendMouseMoveEvent(cx, cy, game)
-            task.wait(0.05)
-            VIM:SendMouseButtonEvent(cx, cy, 0, true,  game, 1)
-            task.wait(0.05)
-            VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
-        end)
-    end
-    return true
-end
-
 local function selectRaidMode(mode)
-    local btn = findRaidDiffButton(mode)
-    if btn then
-        fireGuiClick(btn)
-        selectedRaidMode = mode
-        raidStatusText = "✅ Modo: " .. mode
-        print("[Raid] Modo selecionado: " .. mode)
-    else
-        -- Fallback por posição de tela (PC)
-        local pos = RAID_CONFIG.Positions[mode]
-        if pos then
-            pcall(function()
-                VIM:SendMouseMoveEvent(pos.X, pos.Y, game)
-                task.wait(0.05)
-                VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true,  game, 1)
-                task.wait(0.05)
-                VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
-            end)
-            raidStatusText = "✅ Modo: " .. mode .. " (pos)"
-            print("[Raid] Modo selecionado via posição: " .. mode)
-        else
-            warn("[Raid] Botão não encontrado: " .. mode)
-        end
-    end
+    local pos = RAID_CONFIG.Positions[mode]
+    if not pos then return end
+    clickScreenPos(pos)
+    selectedRaidMode = mode
+    raidStatusText = "✅ Modo: " .. mode
+    print("[Raid] Modo selecionado: " .. mode)
 end
 
 local function clickRaidStart()
-    local btn = findRaidStartButton()
-    if btn then
-        fireGuiClick(btn)
-        raidStatusText = "🚀 Raid iniciado!"
-        print("[Raid] Start clicado!")
-    else
-        -- Fallback por posição
-        local pos = RAID_CONFIG.Positions.Start
-        if pos then
-            pcall(function()
-                VIM:SendMouseMoveEvent(pos.X, pos.Y, game)
-                task.wait(0.05)
-                VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true,  game, 1)
-                task.wait(0.05)
-                VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
-            end)
-            raidStatusText = "🚀 Raid iniciado! (pos)"
-            print("[Raid] Start clicado via posição!")
-        else
-            warn("[Raid] Botão Start não encontrado!")
-        end
-    end
+    clickScreenPos(RAID_CONFIG.Positions.Start)
+    raidStatusText = "🚀 Raid iniciado!"
+    print("[Raid] Start clicado!")
 end
 
 -- Teleporta para área do Raid, seleciona modo e dá start
@@ -1617,3 +1529,21 @@ task.spawn(function()
 end)
 
 print("💡 O Auto Farm iniciará automaticamente quando o mob aparecer")
+
+
+local function clickDifficulty(name)
+    for _, obj in ipairs(PlayerGui:GetDescendants()) do
+        if obj.Name == name and obj:IsA("Frame") and obj.Visible then
+            local pos = obj.AbsolutePosition
+            local size = obj.AbsoluteSize
+            local cx = math.floor(pos.X + size.X / 2)
+            local cy = math.floor(pos.Y + size.Y / 2)
+            -- cx e cy são calculados dinamicamente para qualquer tela
+            VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+            task.wait(0.1)
+            VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+            return true
+        end
+    end
+    return false
+end
